@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scribble - Markdown Workspace & Writing Assistant</title>
+  <!-- Google Fonts: Inter for general UI, Outfit for headings, JetBrains Mono for code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-icon">✍️</span>
+          <span class="logo-text">Scribble</span>
+        </div>
+      </div>
+      
+      <div class="sidebar-actions">
+        <button id="btn-new-note" class="btn btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          New Note
+        </button>
+        <button id="btn-upload-trigger" class="btn btn-secondary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          Upload Markdown
+        </button>
+        <input type="file" id="file-upload" accept=".md,.markdown,.txt" style="display: none;" />
+      </div>
+
+      <div class="search-box">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="search-notes" placeholder="Search notes..." />
+        </div>
+      </div>
+
+      <div class="notes-list-container">
+        <h3 class="list-title">Your Notes</h3>
+        <div id="notes-list" class="notes-list">
+          <!-- Note items will be injected here -->
+          <div class="list-empty-state">No notes found. Create or upload one to get started!</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      
+      <!-- Editor Header -->
+      <header class="workspace-header">
+        <div class="note-title-container">
+          <input type="text" id="note-title" class="note-title-input" placeholder="Title of your note..." disabled />
+          <span id="save-status" class="save-status">Saved</span>
+        </div>
+        
+        <div class="workspace-controls">
+          <div class="view-modes">
+            <button class="mode-tab active" data-mode="split">Split View</button>
+            <button class="mode-tab" data-mode="edit">Edit</button>
+            <button class="mode-tab" data-mode="preview">Preview</button>
+          </div>
+          <button id="btn-save-note" class="btn btn-save" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            Save
+          </button>
+          <button id="btn-delete-note" class="btn btn-delete" title="Delete Note" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Editor Panes -->
+      <div class="workspace-body split-mode" id="workspace-body">
+        
+        <!-- Left Pane: Markdown Editor -->
+        <div class="pane editor-pane" id="pane-editor">
+          <div class="pane-header">
+            <span class="pane-label">Markdown Editor</span>
+            <span id="char-word-count" class="char-word-count">0 words</span>
+          </div>
+          <textarea id="markdown-textarea" class="markdown-editor" placeholder="Write something in Markdown here..." disabled></textarea>
+        </div>
+
+        <!-- Right Pane: Rendered HTML Preview -->
+        <div class="pane preview-pane" id="pane-preview">
+          <div class="pane-header">
+            <span class="pane-label">HTML Preview</span>
+            <button id="btn-copy-html" class="btn-icon-label" title="Copy Rendered HTML">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              Copy HTML
+            </button>
+          </div>
+          <div id="html-rendered-content" class="preview-content markdown-body">
+            <div class="preview-empty-state">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              <p>Select a note or create a new one to start writing.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Collapsible Assistant Panel -->
+    <aside class="assistant-panel" id="assistant-panel">
+      <div class="assistant-header">
+        <h3 class="assistant-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+          Writing Assistant
+        </h3>
+        <span id="grammar-badge" class="badge badge-neutral">0 issues</span>
+      </div>
+
+      <div class="assistant-content">
+        <div id="grammar-issues-list" class="grammar-issues-list">
+          <div class="assistant-empty-state">
+            <div class="success-icon">✨</div>
+            <p class="success-text">Perfect Grammar!</p>
+            <p class="success-subtext">No issues found. Keep up the great work!</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="assistant-footer">
+        <button id="btn-recheck-grammar" class="btn btn-full" disabled>
+          <svg class="refresh-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+          Recheck Grammar
+        </button>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Script -->
+  <script src="./app.js"></script>
+</body>
+</html>
