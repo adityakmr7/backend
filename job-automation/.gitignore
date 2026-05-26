@@ -1,0 +1,42 @@
+# === Node / Bun ===
+node_modules/
+.npm
+*.lock
+bun.lockb
+
+# === Next.js ===
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# === Env files ===
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Corporate TLS certs (local-only, machine-specific)
+backend/corp-ca.pem
+
+# === Prisma ===
+backend/prisma/generated/
+
+# === Playwright ===
+backend/playwright-report/
+backend/test-results/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === IDE ===
+.vscode/
+.idea/
+
+# === Docker ===
+postgres_data/
+redis_data/
+
+# === Logs ===
+*.log
+logs/

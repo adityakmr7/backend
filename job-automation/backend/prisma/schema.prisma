@@ -1,0 +1,92 @@
+// backend/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Job {
+  id             String   @id @default(cuid())
+  source         String   // 'yc' | 'lever' | 'greenhouse' | 'email'
+  externalId     String
+  title          String
+  company        String
+  companySlug    String?
+  description    String
+  applyUrl       String
+  applyMethod    String   @default("form") // 'form' | 'email' | 'external'
+  applyEmail     String?
+  location       String?
+  isRemote       Boolean  @default(false)
+  ycBatch        String?  // e.g. 'W24', 'S25'
+  tags           String[] // PostgreSQL native array
+  status         String   @default("new") // 'new'|'saved'|'applied'|'interview'|'rejected'
+  relevanceScore Float?
+  notes          String?
+  postedAt       DateTime?
+  scrapedAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  applications Application[]
+
+  @@unique([source, externalId]) // deduplication key
+  @@index([status])
+  @@index([company])
+  @@index([source])
+  @@map("jobs")
+}
+
+model Application {
+  id             String    @id @default(cuid())
+  job            Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId          String
+  resume         Resume?   @relation(fields: [resumeId], references: [id])
+  resumeId       String?
+  coverLetter    String?
+  stage          String    @default("applied")
+  // 'applied' | 'phone_screen' | 'technical' | 'offer' | 'rejected' | 'ghosted'
+  submittedAt    DateTime  @default(now())
+  interviewDate  DateTime?
+  followUpSentAt DateTime?
+  notes          String?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([stage])
+  @@index([jobId])
+  @@map("applications")
+}
+
+model Resume {
+  id           String   @id @default(cuid())
+  name         String
+  filePath     String   // Relative path to .md file
+  textContent  String   // Raw markdown — fed directly to AI
+  tags         String[] // e.g. ['full-stack', 'frontend', 'startup']
+  isDefault    Boolean  @default(false)
+  uploadedAt   DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  applications Application[]
+
+  @@map("resumes")
+}
+
+model Profile {
+  id                String   @id @default(cuid())
+  name              String
+  email             String
+  linkedinUrl       String?
+  githubUrl         String?
+  portfolioUrl      String?
+  targetRoles       String[]
+  targetLocations   String[]
+  preferredSalaryMin Int?
+  salaryCurrency    String   @default("USD")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("profiles")
+}

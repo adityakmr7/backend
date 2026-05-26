@@ -1,0 +1,36 @@
+{
+  "name": "jobpilot-backend",
+  "version": "0.1.0",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "sh -c '[ -f ./corp-ca.pem ] && export NODE_EXTRA_CA_CERTS=./corp-ca.pem; bun run --watch src/index.ts'",
+    "start": "bun run src/index.ts",
+    "db:generate": "bunx prisma generate",
+    "db:migrate": "bunx prisma migrate dev",
+    "db:studio": "bunx prisma studio",
+    "db:push": "bunx prisma db push",
+    "db:reset": "bunx prisma migrate reset --force"
+  },
+  "dependencies": {
+    "elysia": "latest",
+    "@elysiajs/cors": "latest",
+    "@elysiajs/swagger": "latest",
+    "@prisma/client": "^6.0.0",
+    "@google/generative-ai": "^0.21.0",
+    "playwright": "^1.49.0",
+    "cheerio": "^1.0.0",
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.0.0",
+    "nodemailer": "^6.9.0",
+    "cron": "^3.1.0",
+    "uuid": "^11.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.0",
+    "@types/uuid": "^10.0.0",
+    "prisma": "^6.0.0",
+    "bun-types": "latest"
+  }
+}

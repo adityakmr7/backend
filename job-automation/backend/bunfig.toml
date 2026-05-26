@@ -1,0 +1,7 @@
+# bunfig.toml — Bun configuration
+[install]
+# Use exact versions to prevent unexpected upgrades
+exact = true
+
+[run]
+bun = true  # Always use Bun runtime

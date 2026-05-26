@@ -1,0 +1,18 @@
+{
+  "name": "job-automation",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n frontend,backend -c cyan,magenta \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && bun run dev",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d",
+    "db:logs": "docker compose logs -f postgres",
+    "install:all": "cd frontend && npm install && cd ../backend && bun install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
