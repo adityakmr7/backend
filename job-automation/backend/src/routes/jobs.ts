@@ -2,12 +2,9 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../lib/prisma';
 import {
-  fetchLeverJobs,
-  fetchGreenhouseJobs,
-  scrapeYCJobs,
+  scrapeWAASJobs,
   saveJobs,
-  YC_LEVER_COMPANIES,
-  YC_GREENHOUSE_COMPANIES,
+  type WAASFilters,
 } from '../services/scraper';
 
 export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
@@ -40,6 +37,7 @@ export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
           id: true,
           title: true,
           company: true,
+          companySlug: true,
           ycBatch: true,
           location: true,
           isRemote: true,
@@ -47,6 +45,10 @@ export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
           status: true,
           relevanceScore: true,
           source: true,
+          salary: true,
+          equity: true,
+          role: true,
+          yearsExp: true,
           postedAt: true,
           scrapedAt: true,
         },
@@ -93,67 +95,36 @@ export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
     return updated;
   })
 
-  // POST /api/jobs/scrape — trigger scrape across YC + Lever + Greenhouse companies
+  // POST /api/jobs/scrape — trigger scrape
   .post('/scrape', async ({ body }) => {
     const {
-      sources = ['yc', 'lever', 'greenhouse'],
-      companies,         // optional override list (Lever/Greenhouse only)
-      maxYCJobs = 50,
+      maxJobs = 100,
+      fetchDetail = true,
       useResumeScoring = true,
+      filters = {},
     } = (body ?? {}) as {
-      sources?: string[];
-      companies?: string[];
-      maxYCJobs?: number;
+      maxJobs?: number;
+      fetchDetail?: boolean;
       useResumeScoring?: boolean;
+      filters?: WAASFilters;
     };
 
-    // Optionally load default resume for relevance scoring
+    // Load default resume for AI relevance scoring
     let resumeText: string | undefined;
     if (useResumeScoring) {
       const defaultResume = await prisma.resume.findFirst({ where: { isDefault: true } });
       resumeText = defaultResume?.textContent;
+      if (resumeText) console.log('[Scraper] Resume loaded for relevance scoring');
     }
 
-    let totalSaved = 0;
-    let totalSkipped = 0;
-
-    // --- YC (Playwright) ---
-    if (sources.includes('yc')) {
-      console.log('[Scraper] Fetching YC workatastartup.com');
-      const ycJobs = await scrapeYCJobs(maxYCJobs);
-      const result = await saveJobs(ycJobs, resumeText);
-      totalSaved += result.saved;
-      totalSkipped += result.skipped;
-    }
-
-    // --- Lever ---
-    if (sources.includes('lever')) {
-      const slugs = companies ?? YC_LEVER_COMPANIES;
-      for (const slug of slugs) {
-        console.log(`[Scraper] Fetching Lever: ${slug}`);
-        const jobs = await fetchLeverJobs(slug);
-        const result = await saveJobs(jobs, resumeText);
-        totalSaved += result.saved;
-        totalSkipped += result.skipped;
-      }
-    }
-
-    // --- Greenhouse ---
-    if (sources.includes('greenhouse')) {
-      const slugs = companies ?? YC_GREENHOUSE_COMPANIES;
-      for (const slug of slugs) {
-        console.log(`[Scraper] Fetching Greenhouse: ${slug}`);
-        const jobs = await fetchGreenhouseJobs(slug);
-        const result = await saveJobs(jobs, resumeText);
-        totalSaved += result.saved;
-        totalSkipped += result.skipped;
-      }
-    }
+    console.log(`[Scraper] Fetching WAAS jobs (max: ${maxJobs})`);
+    const jobs = await scrapeWAASJobs(maxJobs, filters, fetchDetail);
+    const { saved, skipped } = await saveJobs(jobs, resumeText);
 
     return {
       status: 'completed',
-      saved: totalSaved,
-      skipped: totalSkipped,
-      message: `Scrape done. ${totalSaved} new jobs saved, ${totalSkipped} duplicates skipped.`,
+      saved,
+      skipped,
+      message: `Scrape done. ${saved} new jobs saved, ${skipped} duplicates skipped.`,
     };
   });

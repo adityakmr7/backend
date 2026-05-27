@@ -1,13 +1,6 @@
 import { CronJob } from 'cron';
 import { prisma } from '../lib/prisma';
-import {
-  scrapeYCJobs,
-  fetchLeverJobs,
-  fetchGreenhouseJobs,
-  saveJobs,
-  YC_LEVER_COMPANIES,
-  YC_GREENHOUSE_COMPANIES,
-} from './scraper';
+import { scrapeWAASJobs, saveJobs } from './scraper';
 
 async function runFullScrape() {
   const start = Date.now();
@@ -20,31 +13,11 @@ async function runFullScrape() {
   let skipped = 0;
 
   try {
-    const yc = await scrapeYCJobs(50);
-    const r = await saveJobs(yc, resumeText);
-    saved += r.saved; skipped += r.skipped;
+    const jobs = await scrapeWAASJobs(100, {}, true);
+    const r = await saveJobs(jobs, resumeText);
+    saved = r.saved; skipped = r.skipped;
   } catch (e) {
-    console.error('[Cron] YC scrape failed:', (e as Error).message);
-  }
-
-  for (const slug of YC_LEVER_COMPANIES) {
-    try {
-      const jobs = await fetchLeverJobs(slug);
-      const r = await saveJobs(jobs, resumeText);
-      saved += r.saved; skipped += r.skipped;
-    } catch (e) {
-      console.error(`[Cron] Lever ${slug} failed:`, (e as Error).message);
-    }
-  }
-
-  for (const slug of YC_GREENHOUSE_COMPANIES) {
-    try {
-      const jobs = await fetchGreenhouseJobs(slug);
-      const r = await saveJobs(jobs, resumeText);
-      saved += r.saved; skipped += r.skipped;
-    } catch (e) {
-      console.error(`[Cron] Greenhouse ${slug} failed:`, (e as Error).message);
-    }
+    console.error('[Cron] WAAS scrape failed:', (e as Error).message);
   }
 
   const secs = ((Date.now() - start) / 1000).toFixed(1);

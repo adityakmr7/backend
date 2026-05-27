@@ -512,3 +512,190 @@ body {
 .animate-in {
   animation: fadeIn 0.25s ease forwards;
 }
+
+/* ============================================================
+   MARKDOWN PREVIEW (resumes, cover letters)
+   ============================================================ */
+.md-preview {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.md-preview h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin: 0 0 4px;
+}
+.md-preview h2 {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--brand-300);
+  margin: 20px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--surface-5);
+}
+.md-preview h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin: 14px 0 2px;
+  color: var(--text-primary);
+}
+.md-preview h4 {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 12px 0 2px;
+  color: var(--text-primary);
+}
+.md-preview p { margin: 6px 0; color: var(--text-secondary); }
+.md-preview ul, .md-preview ol { margin: 6px 0 12px; padding-left: 20px; color: var(--text-secondary); }
+.md-preview li { margin: 2px 0; }
+.md-preview strong { color: var(--text-primary); font-weight: 600; }
+.md-preview em { color: var(--text-secondary); font-style: italic; }
+.md-preview a { color: var(--brand-300); text-decoration: none; }
+.md-preview a:hover { text-decoration: underline; }
+.md-preview code {
+  font-family: var(--font-geist-mono), monospace;
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--brand-300);
+}
+.md-preview pre {
+  background: var(--surface-2);
+  padding: 12px;
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  border: 1px solid var(--surface-5);
+}
+.md-preview pre code { background: transparent; padding: 0; }
+.md-preview hr {
+  border: none;
+  border-top: 1px solid var(--surface-5);
+  margin: 18px 0;
+}
+.md-preview blockquote {
+  margin: 8px 0;
+  padding: 4px 14px;
+  border-left: 3px solid var(--brand-500);
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.md-preview table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  width: 100%;
+  font-size: 12px;
+}
+.md-preview th, .md-preview td {
+  border: 1px solid var(--surface-5);
+  padding: 6px 10px;
+  text-align: left;
+}
+.md-preview th {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 8, 13, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.15s ease;
+}
+.modal-panel {
+  background: var(--surface-3);
+  border: 1px solid var(--surface-5);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 880px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+.modal-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--surface-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modal-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+.modal-foot {
+  padding: 14px 20px;
+  border-top: 1px solid var(--surface-5);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  background: var(--surface-2);
+}
+
+/* ============================================================
+   TEXTAREA / INPUT (resume editor)
+   ============================================================ */
+.input-base, .textarea-base {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-5);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.textarea-base {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.input-base:focus, .textarea-base:focus {
+  border-color: var(--brand-500);
+}
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* Dropzone */
+.dropzone {
+  border: 2px dashed var(--surface-5);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  text-align: center;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.dropzone:hover, .dropzone.drag-over {
+  border-color: var(--brand-500);
+  background: rgba(61, 90, 255, 0.05);
+}

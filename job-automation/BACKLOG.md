@@ -44,11 +44,16 @@
 - [x] `saveJobs()` with deduplication (unique on `source + externalId`)
 - [x] AI relevance scoring on save (calls `scoreJobRelevance`)
 - [x] Starter company lists (`YC_LEVER_COMPANIES`, `YC_GREENHOUSE_COMPANIES`)
-- [x] **Wire `POST /api/jobs/scrape`** to call `fetchLeverJobs` + `fetchGreenhouseJobs` + `saveJobs`
+- [x] **`scrapeWAASJobs()`** — workatastartup.com scraper (no Playwright, pure fetch + regex)
+  - [x] Pagination through all listing pages (30 jobs/page)
+  - [x] Rich detail fetch per job: equity, salary, skills, visa, experience level
+  - [x] Full WAAS filter support (industry, jobType, hasSalary, hasEquity, usVisa, etc.)
+  - [x] HTML → plain text conversion for AI ingestion
+- [x] `POST /api/jobs/scrape` wired to WAAS + Lever + Greenhouse
 - [x] `GET /api/jobs/stats` — counts by status and source
+- [x] Cron job — auto-scrape every 6 hours
+- [x] `GET /api/jobs/scrape/status` — check if scrape is running
 - [ ] Playwright stealth plugin setup (anti-bot detection)
-- [ ] Cron job — auto-scrape every 6 hours
-- [ ] `GET /api/jobs/scrape/status` — check if scrape is running
 
 ### Jobs API
 - [x] `GET /api/jobs` — list with filters (status, source, role, remote, limit, offset)
@@ -129,41 +134,47 @@
 ## 🎨 Phase 1 — Frontend (Next.js)
 
 ### Layout & Shell
-- [ ] App shell (`app/layout.tsx`) — sidebar nav + header
-- [ ] Sidebar: Dashboard, Jobs, Applications, Resumes, Settings
-- [ ] Dark mode toggle + CSS variables
+- [x] App shell (`app/layout.tsx`) — sidebar nav + header
+- [x] Sidebar: Dashboard, Jobs, Applications, Resumes, Settings
+- [x] Dark mode + CSS variables
 
 ### Dashboard Page (`/dashboard`)
-- [ ] Stats cards: Total scraped, Applied, Interview, Response rate
-- [ ] Recent applications list
-- [ ] "Trigger scrape" button
+- [x] Stats cards: Total scraped, Applied, Interview, Response rate
+- [x] Recent applications list
+- [x] "Trigger scrape" button
 
 ### Job Browser (`/jobs`)
-- [ ] Jobs table/card list (sortable, filterable)
-- [ ] Status badge (New, Applied, Interview, etc.)
-- [ ] Relevance score bar
-- [ ] Job detail panel / modal (full JD + apply button)
-- [ ] AI cover letter generator UI (tone selector + preview)
+- [x] Jobs table/card list with search + status/remote filters
+- [x] Status badge, YC batch badge, Remote badge
+- [x] Relevance score bar (visual progress bar)
+- [x] Job detail page (`/jobs/[id]`) — full JD + compensation facts + founders
+- [x] Scrape options dropdown (maxJobs, fetchDetail toggle)
+- [ ] AI cover letter generator UI on job detail page
 - [ ] Company AI summary panel
 
 ### Application Tracker (`/applications`)
-- [ ] Kanban board (drag-and-drop between stages)
-- [ ] Application card (company, role, date, stage)
-- [ ] Notes editor per application
-- [ ] Interview date picker
+- [x] Kanban board (6 stages: Applied → Offer / Rejected / Ghosted)
+- [x] Application cards with drag-and-drop stage transitions
+- [x] Notes editor + cover letter preview in detail modal
+- [x] Stats bar (count per stage)
+- [ ] Interview date picker in modal
 
 ### Resume Manager (`/resumes`)
-- [ ] Upload `.md` resume (paste or file picker)
-- [ ] List all resume variants with tags
-- [ ] Set default resume
-- [ ] Markdown preview
+- [x] Upload PDF — Gemini converts to markdown
+- [x] "Paste markdown directly" fallback path
+- [x] List all resume variants with tags + date
+- [x] Set default resume
+- [x] Markdown preview pane
+- [x] Live edit (split editor + preview)
+- [x] AI Analyze pane — score ring, strengths/weaknesses, skill chips
+- [x] AI Tailor pane — JD input, change-notes sidebar, tailored preview
 
 ### Settings (`/settings`)
-- [ ] Profile form (name, email, LinkedIn, GitHub)
-- [ ] Target roles + locations multiselect
-- [ ] Preferred salary input
-- [ ] Gemini API key input
-- [ ] Gmail SMTP credentials
+- [x] Profile form (name, email, LinkedIn, GitHub, portfolio) — wired to `/api/profile`
+- [x] Target roles + locations (comma-separated) — saved to DB
+- [x] Preferred salary input
+- [x] Scraper config info panel + Trigger Scrape button
+- [x] Toast notification on save success/error
 
 ---
 
@@ -204,8 +215,8 @@
 
 ## ⏭ Immediate Next Steps (Priority Order)
 
-1. [ ] **Playwright scraper** for `workatastartup.com`
-2. [ ] **Jobs browser UI** — fetch from API, list, filter, apply button
-3. [ ] **Mailer service** — Gmail SMTP for email applications
-4. [ ] **Cron job** — auto-scrape every 6 hours
-5. [ ] **Upload resume UI** — paste markdown, set default
+1. [ ] **Cover letter UI** on `/jobs/[id]` — tone selector + preview + copy
+2. [ ] **Interview date picker** in applications modal
+3. [ ] **Mailer service** — Gmail SMTP for email applications (`src/services/mailer.ts`)
+4. [ ] **Dashboard stats** — wire stats cards to real API data
+5. [ ] **Job detail AI summary** — one-click company intel panel

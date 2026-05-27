@@ -21,11 +21,21 @@ model Job {
   applyEmail     String?
   location       String?
   isRemote       Boolean  @default(false)
-  ycBatch        String?  // e.g. 'W24', 'S25'
-  tags           String[] // PostgreSQL native array
+  ycBatch        String?  // e.g. 'W24', 'S25', 'Spring 2025'
+  tags           String[] // skills/categories — PostgreSQL native array
   status         String   @default("new") // 'new'|'saved'|'applied'|'interview'|'rejected'
   relevanceScore Float?
   notes          String?
+
+  // --- YC-specific / rich enrichment ---
+  salary         String?  // raw range, e.g. "$150K - $190K"
+  equity         String?  // raw range, e.g. "2.00% - 3.00%"
+  yearsExp       String?  // e.g. "3+ years"
+  visa           String?  // e.g. "US citizen/visa only"
+  role           String?  // e.g. "Engineering, Full stack"
+  jobType        String?  // e.g. "Full-time"
+  metadata       Json?    // full payload (founders, website, tech stack, etc.)
+
   postedAt       DateTime?
   scrapedAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

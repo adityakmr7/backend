@@ -127,3 +127,132 @@ Return only the number, nothing else.
   const score = parseInt(result.response.text().trim(), 10);
   return isNaN(score) ? 50 : Math.min(100, Math.max(0, score));
 }
+
+// ---------------------------------------------------------------------------
+// 4. Clean raw resume text (from PDF extraction) into well-structured markdown
+// ---------------------------------------------------------------------------
+export async function cleanResumeToMarkdown(rawText: string): Promise<string> {
+  const prompt = `
+You are converting a resume extracted from a PDF into clean, well-structured Markdown.
+
+**RAW PDF TEXT (line breaks may be wonky, columns may be merged):**
+${rawText}
+
+**INSTRUCTIONS:**
+- Output ONLY valid GitHub-flavored Markdown (no code fences, no preamble, no comments).
+- Top of file:
+    # <Candidate Name>
+    <one-line title> · <city> · <email> · <phone> · [LinkedIn](url) · [GitHub](url)
+- Use \`## Summary\`, \`## Experience\`, \`## Projects\`, \`## Skills\`, \`## Education\` as section headers.
+- For each role under Experience, use the format:
+    ### <Title> — <Company>
+    <Location> · <Start> – <End>
+    - bullet
+    - bullet
+- Preserve every bullet from the source. Do NOT invent content, do NOT drop content, do NOT reword for "impact".
+- Skills section: group as \`**Languages:**\`, \`**Frameworks:**\`, \`**Tools:**\`, \`**Cloud:**\` if those groupings are inferable, else a single bullet list.
+- Fix obvious extraction issues: merged words, smart-quote characters, bullet glyphs, page numbers, header/footer noise.
+- Drop the literal strings "Page X of Y" and any orphan page numbers.
+`.trim();
+
+  const result = await proModel.generateContent(prompt);
+  let md = result.response.text().trim();
+  // Strip accidental triple-backtick wrapping
+  md = md.replace(/^```(?:markdown|md)?\n?/i, '').replace(/\n?```$/, '').trim();
+  if (md.length < 100) throw new Error('AI resume cleanup produced suspiciously short output');
+  return md;
+}
+
+// ---------------------------------------------------------------------------
+// 5. Analyze a resume — structured feedback
+// ---------------------------------------------------------------------------
+export interface ResumeAnalysis {
+  overallScore: number;          // 0-100
+  summary: string;               // 1-2 sentences
+  strengths: string[];
+  weaknesses: string[];
+  suggestions: string[];         // concrete, actionable
+  detectedSkills: string[];
+  detectedRoles: string[];       // e.g. "Backend Engineer", "Full Stack"
+  yearsOfExperience: number | null;
+  seniority: 'junior' | 'mid' | 'senior' | 'staff' | 'unknown';
+}
+
+export async function analyzeResume(resumeMarkdown: string): Promise<ResumeAnalysis> {
+  const prompt = `
+Analyze this resume and return structured JSON only.
+
+**RESUME:**
+${resumeMarkdown}
+
+Return ONLY valid JSON with exactly this shape (no markdown fence, no commentary):
+{
+  "overallScore": <0-100 integer; how strong is this resume for senior IC roles at startups>,
+  "summary": "<1-2 sentence executive summary of the candidate>",
+  "strengths": ["<concrete strength>", ...],
+  "weaknesses": ["<concrete gap or weakness>", ...],
+  "suggestions": ["<actionable rewrite/addition the candidate should make>", ...],
+  "detectedSkills": ["<skill>", ...],
+  "detectedRoles": ["<role title the candidate is a fit for>", ...],
+  "yearsOfExperience": <integer or null>,
+  "seniority": "junior" | "mid" | "senior" | "staff" | "unknown"
+}
+
+Be specific. "Add metrics" is too vague — say "Quantify the 'led migration' bullet under Stripe with throughput delta."
+`.trim();
+
+  const result = await proModel.generateContent(prompt);
+  const text = result.response.text().trim()
+    .replace(/^```(?:json)?\n?/, '')
+    .replace(/\n?```$/, '');
+  return JSON.parse(text) as ResumeAnalysis;
+}
+
+// ---------------------------------------------------------------------------
+// 6. Tailor an existing resume for a specific job description
+// ---------------------------------------------------------------------------
+export interface TailoredResume {
+  markdown: string;       // the rewritten resume in markdown
+  changeNotes: string[];  // bullet list of what changed and why
+}
+
+export async function tailorResumeForJob(
+  resumeMarkdown: string,
+  jobDescription: string,
+  jobTitle?: string,
+  company?: string
+): Promise<TailoredResume> {
+  const prompt = `
+You are tailoring a candidate's resume for a specific job. Return ONLY valid JSON.
+
+**ORIGINAL RESUME (markdown):**
+${resumeMarkdown}
+
+**JOB DESCRIPTION:**
+${jobTitle ? `Title: ${jobTitle}\n` : ''}${company ? `Company: ${company}\n` : ''}${jobDescription}
+
+**TAILORING RULES:**
+- Reorder Skills and Experience bullets to surface what matches the JD first.
+- Rewrite bullet phrasing to use vocabulary from the JD when the candidate's underlying work supports it.
+- **Never invent experience, employers, projects, dates, or metrics.** If the resume doesn't contain it, do NOT add it.
+- Tighten or drop bullets that are clearly irrelevant to this role (e.g. drop iOS bullets for a backend role) — but keep at least 2 bullets per role.
+- Preserve the original section structure (Summary / Experience / Projects / Skills / Education).
+- Output must remain valid GitHub-flavored markdown.
+
+Return ONLY this JSON shape (no fence, no commentary):
+{
+  "markdown": "<the full tailored resume as one markdown string>",
+  "changeNotes": ["<change 1: what + why>", "<change 2>", ...]
+}
+`.trim();
+
+  const result = await proModel.generateContent(prompt);
+  const text = result.response.text().trim()
+    .replace(/^```(?:json)?\n?/, '')
+    .replace(/\n?```$/, '');
+  const parsed = JSON.parse(text) as TailoredResume;
+  if (!parsed.markdown || parsed.markdown.length < 100) {
+    throw new Error('Tailored resume came back empty or truncated');
+  }
+  return parsed;
+}
