@@ -3,6 +3,10 @@ import { Elysia } from 'elysia';
 import type { Resume } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { generateCoverLetter, scoreResumeForJob } from '../services/ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const _genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const _flash  = _genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 export const aiRoutes = new Elysia({ prefix: '/api/ai' })
 
@@ -59,4 +63,79 @@ export const aiRoutes = new Elysia({ prefix: '/api/ai' })
     // Sort by score descending
     scores.sort((a, b) => b.score - a.score);
     return { scores, bestResumeId: scores[0]?.resumeId };
+  })
+
+  // POST /api/ai/company-summary — AI company intelligence panel
+  // Reads already-scraped metadata + JD, returns structured intel (fast Flash model)
+  .post('/company-summary', async ({ body }) => {
+    const { jobId } = body as { jobId: string };
+
+    const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId } });
+
+    // Build context from scraped data + JD
+    const meta = job.metadata as Record<string, unknown> | null;
+    const metaStr = meta
+      ? JSON.stringify({
+          stage:            meta.stage,
+          industry:         meta.industry,
+          team_size:        meta.team_size,
+          year_founded:     meta.year_founded,
+          company_location: meta.company_location,
+          short_description: meta.short_description,
+          long_description: meta.long_description,
+          website:          meta.website,
+        }, null, 2)
+      : 'No additional metadata available.';
+
+    const prompt = `
+You are a startup research analyst. Summarise this company for a job applicant in <5 seconds of reading.
+
+**COMPANY:** ${job.company} (YC ${job.ycBatch ?? 'backed'})
+**ROLE BEING HIRED:** ${job.title}
+
+**SCRAPED METADATA:**
+${metaStr}
+
+**JOB DESCRIPTION (first 2000 chars):**
+${job.description.slice(0, 2000)}
+
+Return ONLY valid JSON with this exact shape (no fence, no commentary):
+{
+  "oneLiner": "<25-word max company description>",
+  "stage": "<seed | series-a | series-b | growth | public | unknown>",
+  "teamSize": "<e.g. '10-20' or 'unknown'>",
+  "techStack": ["<tech1>", "<tech2>"],
+  "whyInteresting": ["<reason 1>", "<reason 2>", "<reason 3 max>"],
+  "redFlags": ["<concern if any, omit array if none>"],
+  "keyChallenge": "<one sentence: the core engineering/product challenge this role addresses>",
+  "competitorLandscape": "<one sentence on who they compete with>",
+  "fundingContext": "<one sentence on funding stage and YC batch if available>"
+}
+
+Be factual. Only include techStack items actually mentioned in the JD or metadata. If unsure, omit.
+`.trim();
+
+    const result = await _flash.generateContent(prompt);
+    const text = result.response.text().trim()
+      .replace(/^```(?:json)?\n?/, '')
+      .replace(/\n?```$/, '');
+
+    const intel = JSON.parse(text) as {
+      oneLiner: string;
+      stage: string;
+      teamSize: string;
+      techStack: string[];
+      whyInteresting: string[];
+      redFlags: string[];
+      keyChallenge: string;
+      competitorLandscape: string;
+      fundingContext: string;
+    };
+
+    return {
+      company: job.company,
+      jobTitle: job.title,
+      ycBatch: job.ycBatch,
+      intel,
+    };
   });

@@ -95,6 +95,32 @@ export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
     return updated;
   })
 
+  // DELETE /api/jobs — wipe ALL jobs (cascades to applications)
+  // Usage: DELETE http://localhost:3001/api/jobs
+  // Optional body: { confirm: true }  (safety guard)
+  .delete('/', async ({ body }) => {
+    const { confirm = false } = (body ?? {}) as { confirm?: boolean };
+    if (!confirm) {
+      throw new Error(
+        'Safety check: send { "confirm": true } in the request body to delete all jobs.'
+      );
+    }
+    const { count } = await prisma.job.deleteMany({});
+    console.log(`[Jobs] Deleted ${count} jobs (+ cascaded applications)`);
+    return {
+      deleted: count,
+      message: `${count} jobs deleted. All linked applications were also removed.`,
+    };
+  })
+
+  // DELETE /api/jobs/:id — delete a single job
+  .delete('/:id', async ({ params }) => {
+    const job = await prisma.job.findUnique({ where: { id: params.id } });
+    if (!job) throw new Error('Job not found');
+    await prisma.job.delete({ where: { id: params.id } });
+    return { deleted: true, id: params.id, title: job.title, company: job.company };
+  })
+
   // POST /api/jobs/scrape — trigger scrape
   .post('/scrape', async ({ body }) => {
     const {

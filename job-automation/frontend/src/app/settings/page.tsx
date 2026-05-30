@@ -258,7 +258,7 @@ export default function SettingsPage() {
             marginBottom: '12px',
           }}>
             ⚙ Set <code style={{ color: 'var(--brand-300)' }}>GMAIL_USER</code> and{' '}
-            <code style={{ color: 'var(--brand-300)' }}>GMAIL_PASS</code> in{' '}
+            <code style={{ color: 'var(--brand-300)' }}>GMAIL_APP_PASSWORD</code> in{' '}
             <code style={{ color: 'var(--brand-300)' }}>backend/.env</code>.
             Generate an App Password at{' '}
             <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer"
@@ -282,12 +282,34 @@ export default function SettingsPage() {
                 id="settings-gmail-pass"
                 className="input-base"
                 type="password"
-                placeholder="Set via GMAIL_PASS in backend/.env"
+                placeholder="Set via GMAIL_APP_PASSWORD in backend/.env"
                 disabled
                 style={{ opacity: 0.5 }}
               />
             </Field>
           </FormRow>
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <button
+              id="settings-verify-smtp-btn"
+              className="btn btn-ghost"
+              style={{ fontSize: '12px' }}
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${API_BASE}/api/apply/mailer/verify`);
+                  const data = await res.json() as { ok: boolean; error?: string };
+                  if (data.ok) {
+                    showToast('✓ Gmail SMTP connection verified successfully!');
+                  } else {
+                    showToast(data.error ?? 'SMTP verification failed', false);
+                  }
+                } catch (e) {
+                  showToast((e as Error).message, false);
+                }
+              }}
+            >
+              🔌 Test SMTP Connection
+            </button>
+          </div>
         </Section>
 
         {/* ── Scraper ── */}

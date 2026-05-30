@@ -82,9 +82,11 @@
 
 ### Apply API
 - [x] `POST /api/apply/:jobId` — record application + update job status
-- [x] `GET /api/apply/queue` — stub queue status
-- [ ] Email sender service (`src/services/mailer.ts` — Nodemailer + Gmail SMTP)
-- [ ] Send actual application email (when `applyMethod === 'email'`)
+- [x] `GET /api/apply/queue` — queue status with real DB counts
+- [x] **`POST /api/apply/:jobId`** (mode='email') — sends real Gmail SMTP email + attaches resume
+- [x] **`POST /api/apply/:id/follow-up`** — 3-day follow-up email sender
+- [x] **`GET /api/apply/mailer/verify`** — test SMTP credentials endpoint
+- [x] `src/services/mailer.ts` — Gmail SMTP via Nodemailer (send + verify + follow-up)
 - [ ] Playwright form filler for Lever job application forms
 - [ ] BullMQ queue integration for async auto-apply
 
@@ -147,10 +149,11 @@
 - [x] Jobs table/card list with search + status/remote filters
 - [x] Status badge, YC batch badge, Remote badge
 - [x] Relevance score bar (visual progress bar)
-- [x] Job detail page (`/jobs/[id]`) — full JD + compensation facts + founders
+- [x] Job detail page (`/jobs/[id]`) — 3-tab layout: Overview / Cover Letter / Resume Match
+- [x] **Cover Letter tab** — tone selector (4 modes), AI generation, inline editor, copy, download, email send panel
+- [x] **Resume Match tab** — score ring, matched/missing skill chips, improvement suggestions, best resume badge
 - [x] Scrape options dropdown (maxJobs, fetchDetail toggle)
-- [ ] AI cover letter generator UI on job detail page
-- [ ] Company AI summary panel
+- [ ] Company AI summary panel (one-click company intel)
 
 ### Application Tracker (`/applications`)
 - [x] Kanban board (6 stages: Applied → Offer / Rejected / Ghosted)
@@ -215,8 +218,9 @@
 
 ## ⏭ Immediate Next Steps (Priority Order)
 
-1. [ ] **Cover letter UI** on `/jobs/[id]` — tone selector + preview + copy
-2. [ ] **Interview date picker** in applications modal
-3. [ ] **Mailer service** — Gmail SMTP for email applications (`src/services/mailer.ts`)
-4. [ ] **Dashboard stats** — wire stats cards to real API data
-5. [ ] **Job detail AI summary** — one-click company intel panel
+1. [x] **Cover letter UI** — ✅ Done (tone selector, AI gen, editor, copy, email send)
+2. [x] **Mailer service** — ✅ Done (Gmail SMTP, verify endpoint, follow-up emails)
+3. [ ] **BullMQ queue** — Redis-backed apply queue + scrape queue (Phase 2 unlock)
+4. [ ] **Interview date picker** — in applications modal
+5. [ ] **Dashboard stats** — wire real DB counts into stats cards
+6. [ ] **Company AI summary** — one-click intel panel on job detail page
