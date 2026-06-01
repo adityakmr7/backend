@@ -28,7 +28,7 @@ type GroupedApplications = Record<string, Application[]>;
 const STAGES: { id: string; label: string; color: string; icon: string }[] = [
   { id: 'applied',      label: 'Applied',      color: '#f59e0b', icon: '📨' },
   { id: 'phone_screen', label: 'Phone Screen',  color: '#8b5cf6', icon: '📞' },
-  { id: 'technical',    label: 'Technical',     color: '#3d5aff', icon: '💻' },
+  { id: 'technical',    label: 'Technical',     color: '#22c55e', icon: '💻' },
   { id: 'offer',        label: 'Offer',         color: '#10b981', icon: '🎉' },
   { id: 'rejected',     label: 'Rejected',      color: '#ef4444', icon: '✗'  },
   { id: 'ghosted',      label: 'Ghosted',       color: '#6b7280', icon: '👻' },

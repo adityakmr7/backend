@@ -224,8 +224,8 @@ function ResumeList({
                   padding: '10px 12px',
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  background: isActive ? 'rgba(61,90,255,0.08)' : 'transparent',
-                  border: isActive ? '1px solid rgba(61,90,255,0.22)' : '1px solid transparent',
+                  background: isActive ? 'rgba(34,197,94,0.08)' : 'transparent',
+                  border: isActive ? '1px solid rgba(34,197,94,0.22)' : '1px solid transparent',
                   transition: 'all 0.12s',
                 }}
               >
@@ -233,7 +233,7 @@ function ResumeList({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
                   <div style={{
                     width: '28px', height: '28px', borderRadius: '6px',
-                    background: isActive ? 'rgba(61,90,255,0.15)' : 'var(--surface-4)',
+                    background: isActive ? 'rgba(34,197,94,0.15)' : 'var(--surface-4)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '13px', flexShrink: 0,
                   }}>
@@ -299,8 +299,8 @@ function ResumeList({
       {resumes.length > 0 && (
         <div style={{
           marginTop: '10px', padding: '10px 12px',
-          background: 'rgba(61,90,255,0.06)',
-          border: '1px solid rgba(61,90,255,0.15)',
+          background: 'rgba(34,197,94,0.06)',
+          border: '1px solid rgba(34,197,94,0.15)',
           borderRadius: '10px',
           fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.6,
         }}>
@@ -540,8 +540,8 @@ function AnalyzePane({ resume }: { resume: Resume }) {
         {/* Hero graphic */}
         <div style={{
           width: '80px', height: '80px', borderRadius: '20px',
-          background: 'linear-gradient(135deg, rgba(61,90,255,0.15), rgba(139,92,246,0.15))',
-          border: '1px solid rgba(61,90,255,0.2)',
+          background: 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(74,222,128,0.15))',
+          border: '1px solid rgba(34,197,94,0.2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: '36px',
         }}>🔬</div>
@@ -580,8 +580,8 @@ function AnalyzePane({ resume }: { resume: Resume }) {
       <div style={{
         display: 'flex', gap: '24px', alignItems: 'center',
         padding: '20px 24px',
-        background: 'linear-gradient(135deg, rgba(61,90,255,0.06), rgba(139,92,246,0.04))',
-        border: '1px solid rgba(61,90,255,0.15)',
+        background: 'linear-gradient(135deg, rgba(34,197,94,0.06), rgba(74,222,128,0.04))',
+        border: '1px solid rgba(34,197,94,0.15)',
         borderRadius: '12px',
       }}>
         {/* Score ring */}
@@ -640,7 +640,7 @@ function AnalyzePane({ resume }: { resume: Resume }) {
       </div>
 
       {/* Suggestions */}
-      <BulletCard title="💡 Suggested Improvements" color="#3d5aff" items={data.suggestions} />
+      <BulletCard title="💡 Suggested Improvements" color="#22c55e" items={data.suggestions} />
 
       {/* Skills */}
       {data.detectedSkills.length > 0 && (
@@ -804,8 +804,8 @@ function TailorPane({ resume }: { resume: Resume }) {
       {loading && (
         <div style={{
           padding: '32px', textAlign: 'center',
-          background: 'linear-gradient(135deg, rgba(61,90,255,0.05), rgba(139,92,246,0.05))',
-          border: '1px solid rgba(61,90,255,0.12)',
+          background: 'linear-gradient(135deg, rgba(34,197,94,0.05), rgba(74,222,128,0.05))',
+          border: '1px solid rgba(34,197,94,0.12)',
           borderRadius: '12px',
         }}>
           <div style={{ fontSize: '32px', marginBottom: '10px', animation: 'pulse 1.5s ease-in-out infinite' }}>✨</div>
@@ -994,8 +994,8 @@ function UploadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id: 
                     <div style={{
                       width: '64px', height: '64px', margin: '0 auto 16px',
                       borderRadius: '16px',
-                      background: 'rgba(61,90,255,0.08)',
-                      border: '2px dashed rgba(61,90,255,0.3)',
+                      background: 'rgba(34,197,94,0.08)',
+                      border: '2px dashed rgba(34,197,94,0.3)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: '28px',
                     }}>📄</div>

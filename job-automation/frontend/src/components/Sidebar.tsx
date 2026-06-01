@@ -3,74 +3,66 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const navItems = [
-  {
-    section: 'Main',
-    items: [
-      { href: '/dashboard', icon: '▦', label: 'Dashboard' },
-      { href: '/jobs',      icon: '⌕', label: 'Jobs',          badge: 'NEW' },
-      { href: '/applications', icon: '◧', label: 'Applications' },
-    ],
-  },
-  {
-    section: 'Tools',
-    items: [
-      { href: '/resumes',  icon: '◫', label: 'Resumes' },
-      { href: '/settings', icon: '⚙', label: 'Settings' },
-    ],
-  },
+interface Item {
+  href: string;
+  label: string;
+  icon: string;
+  badge?: 'NEW' | number;
+}
+
+const PRIMARY: Item[] = [
+  { href: '/jobs',         label: 'Jobs',          icon: '💼' },
+  { href: '/resumes',      label: 'Resume',        icon: '📄' },
+  { href: '/dashboard',    label: 'Profile',       icon: '👤' },
+  { href: '/applications', label: 'Applications',  icon: '🎯' },
+  { href: '/settings',     label: 'Coaching',      icon: '🧭', badge: 'NEW' },
 ];
 
+const SECONDARY: Item[] = [
+  { href: '/dashboard',  label: 'Gifts',    icon: '🎁' },
+  { href: '/dashboard',  label: 'Notifs',   icon: '🔔' },
+  { href: '/dashboard',  label: 'Help',     icon: '❓' },
+  { href: '/settings',   label: 'Settings', icon: '⚙' },
+];
+
+function isActive(pathname: string, href: string) {
+  if (href === '/dashboard' && pathname === '/dashboard') return true;
+  if (href === '/dashboard') return false;
+  return pathname === href || pathname.startsWith(href + '/');
+}
+
 export default function Sidebar() {
-  const pathname = usePathname();
-
+  const pathname = usePathname() ?? '/';
   return (
-    <aside className="sidebar">
-      {/* Logo */}
-      <div className="sidebar-logo">
-        <div className="sidebar-logo-mark">✈</div>
-        <span className="sidebar-logo-text">JobPilot</span>
-        <span className="sidebar-logo-badge">Beta</span>
-      </div>
+    <aside className="rail" role="navigation" aria-label="Primary">
+      <Link href="/dashboard" className="rail-logo" aria-label="JobPilot home">
+        ✈
+      </Link>
 
-      {/* Navigation */}
-      <nav className="sidebar-nav" aria-label="Main navigation">
-        {navItems.map((section) => (
-          <div key={section.section}>
-            <div className="sidebar-section-label">{section.section}</div>
-            {section.items.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  id={`nav-${item.label.toLowerCase()}`}
-                  className={`nav-item ${isActive ? 'active' : ''}`}
-                  aria-current={isActive ? 'page' : undefined}
-                >
-                  <span className="nav-item-icon" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                  {item.label}
-                  {item.badge && (
-                    <span className="nav-item-badge">{item.badge}</span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+      {PRIMARY.map((item) => (
+        <RailLink key={item.label} item={item} active={isActive(pathname, item.href)} />
+      ))}
+
+      <div className="rail-bottom">
+        {SECONDARY.map((item) => (
+          <RailLink key={item.label} item={item} active={false} />
         ))}
-      </nav>
-
-      {/* Footer */}
-      <div className="sidebar-footer">
-        <div className="nav-item" style={{ cursor: 'default' }}>
-          <span className="status-dot" aria-label="API connected" />
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            API connected
-          </span>
-        </div>
       </div>
     </aside>
+  );
+}
+
+function RailLink({ item, active }: { item: Item; active: boolean }) {
+  return (
+    <Link
+      href={item.href}
+      className={`rail-link ${active ? 'active' : ''}`}
+      title={item.label}
+      aria-current={active ? 'page' : undefined}
+    >
+      <span className="rail-link-icon" aria-hidden>{item.icon}</span>
+      <span>{item.label}</span>
+      {item.badge && <span className="rail-link-badge">{item.badge}</span>}
+    </Link>
   );
 }

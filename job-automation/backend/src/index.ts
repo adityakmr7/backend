@@ -8,6 +8,8 @@ import { applyRoutes } from './routes/apply';
 import { trackerRoutes } from './routes/tracker';
 import { resumeRoutes } from './routes/resumes';
 import { profileRoutes } from './routes/profile';
+import { authRoutes } from './routes/auth';
+import { jwtPlugin, requireAuth } from './lib/auth';
 import { startCronJobs } from './services/cron';
 
 const app = new Elysia()
@@ -25,24 +27,31 @@ const app = new Elysia()
       },
     },
   }))
-  // Health check
+  // Public health check
   .get('/health', () => ({
     status: 'ok',
     timestamp: new Date().toISOString(),
     version: '0.1.0',
   }))
-  // Mount routes
-  .use(jobsRoutes)
-  .use(aiRoutes)
-  .use(applyRoutes)
-  .use(trackerRoutes)
-  .use(resumeRoutes)
-  .use(profileRoutes)
+  // Public auth routes (signup / login / me / bootstrap)
+  .use(authRoutes)
+  // Everything below requires a valid session cookie.
+  .use(jwtPlugin)
+  .guard({ beforeHandle: requireAuth }, (app) =>
+    app
+      .use(jobsRoutes)
+      .use(aiRoutes)
+      .use(applyRoutes)
+      .use(trackerRoutes)
+      .use(resumeRoutes)
+      .use(profileRoutes)
+  )
   .listen(process.env.PORT ?? 3001);
 
 console.log(`🚀 JobPilot API running at http://localhost:${app.server?.port}`);
 console.log(`📖 API Docs:           http://localhost:${app.server?.port}/docs`);
 console.log(`❤️  Health check:       http://localhost:${app.server?.port}/health`);
+console.log(`🔐 Auth:               POST /api/auth/signup · /login · /logout · GET /me`);
 
 if (process.env.DISABLE_CRON !== 'true') {
   startCronJobs();

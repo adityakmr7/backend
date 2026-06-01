@@ -16,6 +16,7 @@ export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
       source,
       role,
       remote,
+      applyMethod,
       limit = '50',
       offset = '0',
     } = query as Record<string, string>;
@@ -23,6 +24,7 @@ export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
     if (source) where.source = source;
+    if (applyMethod) where.applyMethod = applyMethod;
     if (remote === 'true') where.isRemote = true;
     if (role) where.title = { contains: role, mode: 'insensitive' };
 
@@ -58,11 +60,12 @@ export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
     return { total, jobs };
   })
 
-  // GET /api/jobs/stats — counts by status and source (must come before /:id)
+  // GET /api/jobs/stats — counts by status, source, and applyMethod (must come before /:id)
   .get('/stats', async () => {
-    const [byStatus, bySource, total] = await Promise.all([
+    const [byStatus, bySource, byApplyMethod, total] = await Promise.all([
       prisma.job.groupBy({ by: ['status'], _count: { id: true } }),
       prisma.job.groupBy({ by: ['source'], _count: { id: true } }),
+      prisma.job.groupBy({ by: ['applyMethod'], _count: { id: true } }),
       prisma.job.count(),
     ]);
     return {
@@ -72,6 +75,9 @@ export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
       ),
       bySource: Object.fromEntries(
         bySource.map((r: { source: string; _count: { id: number } }) => [r.source, r._count.id])
+      ),
+      byApplyMethod: Object.fromEntries(
+        byApplyMethod.map((r: { applyMethod: string; _count: { id: number } }) => [r.applyMethod, r._count.id])
       ),
     };
   })

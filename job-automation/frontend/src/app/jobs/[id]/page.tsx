@@ -409,7 +409,7 @@ function CoverLetterTab({ job, onApplied }: { job: JobDetail; onApplied: () => v
               style={{
                 padding: '10px 14px', borderRadius: '9px', cursor: 'pointer',
                 textAlign: 'left', border: `1px solid ${tone === t.id ? 'var(--brand-500)' : 'var(--surface-5)'}`,
-                background: tone === t.id ? 'rgba(61,90,255,0.08)' : 'var(--surface-2)',
+                background: tone === t.id ? 'rgba(34,197,94,0.08)' : 'var(--surface-2)',
                 transition: 'all 0.12s',
               }}
             >
@@ -442,8 +442,8 @@ function CoverLetterTab({ job, onApplied }: { job: JobDetail; onApplied: () => v
       {loading && (
         <div style={{
           padding: '40px', textAlign: 'center',
-          background: 'linear-gradient(135deg, rgba(61,90,255,0.05), rgba(139,92,246,0.04))',
-          border: '1px solid rgba(61,90,255,0.12)', borderRadius: '12px',
+          background: 'linear-gradient(135deg, rgba(34,197,94,0.05), rgba(74,222,128,0.04))',
+          border: '1px solid rgba(34,197,94,0.12)', borderRadius: '12px',
         }}>
           <div style={{ fontSize: '36px', marginBottom: '12px', animation: 'pulse 1.4s ease-in-out infinite' }}>✨</div>
           <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
@@ -578,8 +578,8 @@ function CoverLetterTab({ job, onApplied }: { job: JobDetail; onApplied: () => v
         }}>
           <div style={{
             width: '72px', height: '72px', borderRadius: '18px',
-            background: 'linear-gradient(135deg, rgba(61,90,255,0.12), rgba(139,92,246,0.10))',
-            border: '1px solid rgba(61,90,255,0.2)',
+            background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(74,222,128,0.10))',
+            border: '1px solid rgba(34,197,94,0.2)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '32px',
           }}>✉️</div>
@@ -657,8 +657,8 @@ function ScoreTab({ job }: { job: JobDetail }) {
       }}>
         <div style={{
           width: '72px', height: '72px', borderRadius: '18px',
-          background: 'linear-gradient(135deg, rgba(61,90,255,0.12), rgba(139,92,246,0.10))',
-          border: '1px solid rgba(61,90,255,0.2)',
+          background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(74,222,128,0.10))',
+          border: '1px solid rgba(34,197,94,0.2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: '32px',
         }}>🎯</div>
@@ -691,8 +691,8 @@ function ScoreTab({ job }: { job: JobDetail }) {
           className="card"
           style={{
             padding: '16px 18px',
-            border: `1px solid ${s.resumeId === data.bestResumeId ? 'rgba(61,90,255,0.4)' : 'var(--surface-5)'}`,
-            background: s.resumeId === data.bestResumeId ? 'rgba(61,90,255,0.04)' : 'var(--surface-3)',
+            border: `1px solid ${s.resumeId === data.bestResumeId ? 'rgba(34,197,94,0.4)' : 'var(--surface-5)'}`,
+            background: s.resumeId === data.bestResumeId ? 'rgba(34,197,94,0.04)' : 'var(--surface-3)',
           }}
         >
           {/* Header */}
@@ -775,8 +775,8 @@ function ScoreTab({ job }: { job: JobDetail }) {
           {/* Improvements */}
           {s.improvements.length > 0 && (
             <div style={{
-              padding: '10px 12px', background: 'rgba(61,90,255,0.05)',
-              border: '1px solid rgba(61,90,255,0.15)', borderRadius: '8px',
+              padding: '10px 12px', background: 'rgba(34,197,94,0.05)',
+              border: '1px solid rgba(34,197,94,0.15)', borderRadius: '8px',
             }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--brand-400)', marginBottom: '6px' }}>💡 To improve this match</div>
               <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.7 }}>

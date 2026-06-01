@@ -68,6 +68,7 @@ export interface JobStats {
   total: number;
   byStatus: Record<string, number>;
   bySource: Record<string, number>;
+  byApplyMethod?: Record<string, number>;
 }
 
 export interface ResumeSummary {
@@ -125,12 +126,22 @@ export interface Profile {
   preferredSalaryMin?: number;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  createdAt: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
   });
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('jp:unauthorized'));
+    }
     const body = await res.text().catch(() => '');
     throw new Error(`API ${res.status}: ${body || res.statusText}`);
   }
@@ -209,14 +220,33 @@ export const api = {
       form.append('file', file);
       const res = await fetch(`${API_BASE}/api/resumes/upload-pdf`, {
         method: 'POST',
+        credentials: 'include',
         body: form,
       });
       if (!res.ok) {
+        if (res.status === 401 && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('jp:unauthorized'));
+        }
         const body = await res.text().catch(() => '');
         throw new Error(`Upload failed (${res.status}): ${body || res.statusText}`);
       }
       return res.json() as Promise<PdfUploadResult>;
     },
     downloadUrl: (id: string) => `${API_BASE}/api/resumes/${id}/download`,
+  },
+  auth: {
+    me: () => request<{ user: AuthUser | null }>('/api/auth/me'),
+    bootstrapStatus: () => request<{ hasUsers: boolean }>('/api/auth/bootstrap-status'),
+    login: (body: { email: string; password: string }) =>
+      request<{ user: AuthUser }>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    signup: (body: { email: string; password: string }) =>
+      request<{ user: AuthUser }>('/api/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   },
 };

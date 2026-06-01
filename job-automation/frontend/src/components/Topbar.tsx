@@ -1,42 +1,75 @@
 'use client';
 
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 
-const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  '/dashboard':    { title: 'Dashboard',    subtitle: 'Overview of your job search' },
-  '/jobs':         { title: 'Jobs',         subtitle: 'Browse and apply to jobs' },
-  '/applications': { title: 'Applications', subtitle: 'Track your application pipeline' },
-  '/resumes':      { title: 'Resumes',      subtitle: 'Manage your resume variants' },
-  '/settings':     { title: 'Settings',     subtitle: 'Configure your profile and preferences' },
-};
-
-interface TopbarProps {
-  actions?: React.ReactNode;
+interface PageMeta {
+  title: string;
+  /** Active "tab" label shown after the chevron — pulled from the URL. */
+  segment?: string;
 }
 
-export default function Topbar({ actions }: TopbarProps) {
-  const pathname = usePathname();
-  const meta = pageTitles[pathname] ?? { title: 'JobPilot', subtitle: '' };
+const PAGE_META: Record<string, PageMeta> = {
+  '/dashboard':    { title: 'DASHBOARD',    segment: 'Overview' },
+  '/jobs':         { title: 'JOBS',         segment: 'Recommended' },
+  '/applications': { title: 'APPLICATIONS', segment: 'Pipeline' },
+  '/resumes':      { title: 'RESUMES',      segment: 'Library' },
+  '/settings':     { title: 'SETTINGS',     segment: 'Profile' },
+};
+
+function metaForPath(pathname: string): PageMeta {
+  if (pathname.startsWith('/jobs/')) return { title: 'JOBS', segment: 'Detail' };
+  return PAGE_META[pathname] ?? { title: 'JOBPILOT' };
+}
+
+export default function Topbar() {
+  const pathname = usePathname() ?? '/';
+  const meta = metaForPath(pathname);
+  const { user, logout } = useAuth();
+  const initial = (user?.email ?? '?').trim().charAt(0).toUpperCase();
+  const handle = (user?.email ?? '').split('@')[0] || 'You';
 
   return (
     <header className="topbar" role="banner">
-      <div>
-        <div className="topbar-title">{meta.title}</div>
+      <div className="topbar-section">
+        <span className="topbar-eyebrow">{meta.title}</span>
+        {meta.segment && (
+          <>
+            <span className="topbar-chevron">›</span>
+            <span style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              borderBottom: '2px solid var(--text-primary)',
+              paddingBottom: '2px',
+            }}>{meta.segment}</span>
+          </>
+        )}
       </div>
-      <div className="topbar-spacer" />
-      <div className="topbar-actions" role="toolbar" aria-label="Page actions">
-        {actions}
-        <a
-          id="topbar-api-docs"
-          href="http://localhost:3001/docs"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-ghost"
-          title="Open API documentation"
-        >
-          <span aria-hidden="true">⎋</span> API Docs
-        </a>
+
+      <div className="topbar-search">
+        <span aria-hidden>🔎</span>
+        <input
+          placeholder="Search by title or company"
+          aria-label="Search"
+        />
       </div>
+
+      <Link href="/settings" className="upgrade-cta" aria-label="Upgrade plan">
+        <span className="upgrade-cta-spark">⚡</span>
+        Upgrade to Turbo: Get Hired Faster
+        <span aria-hidden>›</span>
+      </Link>
+
+      <button
+        className="avatar-chip"
+        onClick={logout}
+        title={`Signed in as ${user?.email ?? ''} — click to sign out`}
+      >
+        <span className="avatar-chip-bubble">{initial}</span>
+        {handle}
+      </button>
     </header>
   );
 }
