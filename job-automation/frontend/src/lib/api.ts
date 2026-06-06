@@ -38,6 +38,7 @@ export interface JobDetail extends JobListItem {
   description: string;
   applyUrl: string;
   applyMethod: string;
+  applyEmail: string | null;
   visa: string | null;
   jobType: string | null;
   notes: string | null;
@@ -114,6 +115,77 @@ export interface TailorResult {
   };
 }
 
+// ── AI: cover letter + resume scoring ─────────────────────────────────────
+export interface CoverLetterResult {
+  coverLetter: string;
+  wordCount: number;
+  jobTitle: string;
+  company: string;
+}
+
+export interface ResumeScoreEntry {
+  resumeId: string;
+  resumeName: string;
+  score: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  strengthAreas: string[];
+  improvements: string[];
+  recommendation: 'strong_match' | 'good_match' | 'weak_match';
+}
+
+export interface ResumeScoreResult {
+  scores: ResumeScoreEntry[];
+  bestResumeId: string;
+}
+
+// ── Apply ──────────────────────────────────────────────────────────────────
+export type ApplyMode = 'record' | 'email' | 'external' | 'full-auto';
+
+export interface ApplySubmitBody {
+  resumeId?: string;
+  coverLetter?: string;
+  mode?: ApplyMode;
+  applyEmail?: string;
+}
+
+export interface ApplyOk {
+  applicationId: string;
+  status: 'recorded' | 'submitted_email';
+  company: string;
+  title: string;
+  submittedAt: string;
+  email: { messageId?: string; error?: string };
+  message: string;
+}
+
+export interface ApplyConflict {
+  error: { code: 'ALREADY_APPLIED'; message: string; applicationId: string };
+}
+
+export type ApplyResult = ApplyOk | ApplyConflict;
+export function isApplyConflict(r: ApplyResult): r is ApplyConflict {
+  return 'error' in r && r.error?.code === 'ALREADY_APPLIED';
+}
+
+export interface ProfileExperience {
+  title: string;
+  company: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+  location?: string;
+}
+
+export interface ProfileEducation {
+  degree: string;
+  field?: string;
+  institution: string;
+  graduationYear?: string;
+  gpa?: string;
+}
+
 export interface Profile {
   id?: string;
   name: string;
@@ -124,6 +196,22 @@ export interface Profile {
   targetRoles?: string[];
   targetLocations?: string[];
   preferredSalaryMin?: number;
+  // structured autofill fields (used by the browser extension)
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  zip?: string;
+  experience?: ProfileExperience[];
+  education?: ProfileEducation[];
+}
+
+export interface SettingsInfo {
+  hasGeminiKey: boolean;
+  geminiKeyHint: string | null;
+  updatedAt: string | null;
 }
 
 export interface AuthUser {
@@ -132,13 +220,45 @@ export interface AuthUser {
   createdAt: string;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+// ── Applications (tracker) ────────────────────────────────────────────────
+export const APPLICATION_STAGES = [
+  'applied', 'phone_screen', 'technical', 'offer', 'rejected', 'ghosted',
+] as const;
+export type ApplicationStage = (typeof APPLICATION_STAGES)[number];
+
+export interface ApplicationJob {
+  title: string;
+  company: string;
+  ycBatch: string | null;
+  applyUrl: string;
+  applyEmail: string | null;
+}
+
+export interface Application {
+  id: string;
+  jobId: string;
+  resumeId: string | null;
+  coverLetter: string | null;
+  stage: ApplicationStage;
+  submittedAt: string;
+  interviewDate: string | null;
+  followUpSentAt: string | null;
+  notes: string | null;
+  updatedAt: string;
+  job: ApplicationJob;
+  resume: { name: string } | null;
+}
+
+export type GroupedApplications = Record<ApplicationStage, Application[]>;
+
+async function request<T>(path: string, init?: RequestInit & { allow?: number[] }): Promise<T> {
+  const { allow, ...rest } = init ?? {};
   const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
+    ...rest,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: { 'Content-Type': 'application/json', ...(rest.headers ?? {}) },
   });
-  if (!res.ok) {
+  if (!res.ok && !allow?.includes(res.status)) {
     if (res.status === 401 && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('jp:unauthorized'));
     }
@@ -176,17 +296,60 @@ export const api = {
       }),
   },
   applications: {
-    list: () => request<Record<string, unknown[]>>('/api/applications'),
-    patch: (id: string, data: { stage?: string; notes?: string; interviewDate?: string }) =>
-      request<Record<string, unknown>>(`/api/applications/${id}`, {
+    list: () => request<GroupedApplications>('/api/applications'),
+    detail: (id: string) => request<Application>(`/api/applications/${id}`),
+    patch: (id: string, data: { stage?: ApplicationStage; notes?: string | null; interviewDate?: string | null }) =>
+      request<Application>(`/api/applications/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
+    delete: (id: string) =>
+      request<{ ok: true }>(`/api/applications/${id}`, { method: 'DELETE' }),
+  },
+  followUp: {
+    send: (applicationId: string, applyEmail?: string) =>
+      request<{ sent: true; messageId: string; to: string }>(
+        `/api/apply/${applicationId}/follow-up`,
+        {
+          method: 'POST',
+          body: JSON.stringify(applyEmail ? { applyEmail } : {}),
+        },
+      ),
+  },
+  ai: {
+    coverLetter: (body: { jobId: string; resumeId?: string; tone?: string }) =>
+      request<CoverLetterResult>('/api/ai/cover-letter', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    scoreResume: (jobId: string) =>
+      request<ResumeScoreResult>('/api/ai/score-resume', {
+        method: 'POST',
+        body: JSON.stringify({ jobId }),
+      }),
+  },
+  apply: {
+    submit: (jobId: string, body: ApplySubmitBody) =>
+      request<ApplyResult>(`/api/apply/${jobId}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+        allow: [409],
+      }),
+    mailerVerify: () =>
+      request<{ ok: boolean; error?: string }>('/api/apply/mailer/verify'),
   },
   profile: {
     get: () => request<Profile>('/api/profile'),
     save: (body: Profile) =>
       request<Profile>('/api/profile', { method: 'PUT', body: JSON.stringify(body) }),
+  },
+  settings: {
+    get: () => request<SettingsInfo>('/api/settings'),
+    save: (geminiApiKey: string | null) =>
+      request<SettingsInfo>('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ geminiApiKey }),
+      }),
   },
   resumes: {
     list: () => request<ResumeSummary[]>('/api/resumes'),

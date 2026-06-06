@@ -1,22 +1,20 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { AuthCard, Field } from '../login/page';
 
 export default function SignupPage() {
   const router = useRouter();
-  const { user, loading, signup } = useAuth();
+  const { signup } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!loading && user) router.replace('/dashboard');
-  }, [user, loading, router]);
+  // Signed-in → /dashboard bounce is handled by AuthGate.
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

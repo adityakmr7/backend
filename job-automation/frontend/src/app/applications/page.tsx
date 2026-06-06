@@ -1,51 +1,66 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  api,
+  APPLICATION_STAGES,
+  type Application,
+  type ApplicationStage,
+  type GroupedApplications,
+} from '@/lib/api';
+import ApplicationCard from '@/components/ApplicationCard';
+import ApplicationDrawer from '@/components/ApplicationDrawer';
+import { useDrawer } from '@/components/Drawer';
 
-// ── Types ──────────────────────────────────────────────────────────────────
-interface ApplicationJob {
-  title: string;
-  company: string;
-  ycBatch: string | null;
-  applyUrl: string;
-}
-
-interface Application {
-  id: string;
-  jobId: string;
-  stage: string;
-  coverLetter: string | null;
-  notes: string | null;
-  interviewDate: string | null;
-  submittedAt: string;
-  job: ApplicationJob;
-  resume: { name: string } | null;
-}
-
-type GroupedApplications = Record<string, Application[]>;
-
-const STAGES: { id: string; label: string; color: string; icon: string }[] = [
-  { id: 'applied',      label: 'Applied',      color: '#f59e0b', icon: '📨' },
-  { id: 'phone_screen', label: 'Phone Screen',  color: '#8b5cf6', icon: '📞' },
+const STAGES: { id: ApplicationStage; label: string; color: string; icon: string }[] = [
+  { id: 'applied',      label: 'Applied',       color: '#f59e0b', icon: '📨' },
+  { id: 'phone_screen', label: 'Phone Screen',  color: '#a855f7', icon: '📞' },
   { id: 'technical',    label: 'Technical',     color: '#22c55e', icon: '💻' },
   { id: 'offer',        label: 'Offer',         color: '#10b981', icon: '🎉' },
   { id: 'rejected',     label: 'Rejected',      color: '#ef4444', icon: '✗'  },
-  { id: 'ghosted',      label: 'Ghosted',       color: '#6b7280', icon: '👻' },
+  { id: 'ghosted',      label: 'Ghosted',       color: '#9ca3af', icon: '👻' },
 ];
 
-// ── Page ───────────────────────────────────────────────────────────────────
+function emptyGroups(): GroupedApplications {
+  const out = {} as GroupedApplications;
+  for (const s of APPLICATION_STAGES) out[s] = [];
+  return out;
+}
+
 export default function ApplicationsPage() {
-  const [groups, setGroups] = useState<GroupedApplications>({});
+  const [groups, setGroups] = useState<GroupedApplications>(emptyGroups());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Application | null>(null);
-  const [dragging, setDragging] = useState<string | null>(null);
+  const drawer = useDrawer<Application>();
+
+  // dnd-kit sensors: pointer (with 5px threshold so plain clicks pass through
+  // to the card's onClick) + keyboard (space to pick up, arrows to move).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const res = await api.applications.list() as GroupedApplications;
-      setGroups(res);
+      const res = await api.applications.list();
+      // Ensure every stage key exists even if backend omits empties
+      setGroups({ ...emptyGroups(), ...res });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -55,400 +70,176 @@ export default function ApplicationsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const total = Object.values(groups).reduce((s, arr) => s + arr.length, 0);
+  const total = useMemo(
+    () => Object.values(groups).reduce((s, arr) => s + arr.length, 0),
+    [groups]
+  );
 
-  async function moveCard(appId: string, toStage: string) {
+  /** Look up an application id across all stages. */
+  function findApp(id: string): { app: Application; stage: ApplicationStage } | null {
+    for (const stage of APPLICATION_STAGES) {
+      const found = groups[stage].find((a) => a.id === id);
+      if (found) return { app: found, stage };
+    }
+    return null;
+  }
+
+  async function moveToStage(appId: string, toStage: ApplicationStage) {
+    const hit = findApp(appId);
+    if (!hit || hit.stage === toStage) return;
+
+    // Optimistic update
+    const prev = groups;
+    const next: GroupedApplications = { ...groups };
+    next[hit.stage] = next[hit.stage].filter((a) => a.id !== appId);
+    next[toStage] = [{ ...hit.app, stage: toStage }, ...next[toStage]];
+    setGroups(next);
+
     try {
-      await fetch(`http://localhost:3001/api/applications/${appId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: toStage }),
-      });
-      await load();
+      await api.applications.patch(appId, { stage: toStage });
     } catch (e) {
-      setError((e as Error).message);
+      setGroups(prev); // rollback
+      setError(`Move failed: ${(e as Error).message}`);
     }
   }
 
-  function handleDragStart(e: React.DragEvent, appId: string) {
-    setDragging(appId);
-    e.dataTransfer.setData('appId', appId);
-    e.dataTransfer.effectAllowed = 'move';
+  function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over) return;
+    const dropped = String(over.id);
+
+    // The drop target can be either a column id (stage) or another card id.
+    // If it's a card id, resolve to its stage.
+    const stageGuess: ApplicationStage | null =
+      APPLICATION_STAGES.includes(dropped as ApplicationStage)
+        ? (dropped as ApplicationStage)
+        : (findApp(dropped)?.stage ?? null);
+
+    if (!stageGuess) return;
+    moveToStage(String(active.id), stageGuess);
   }
 
-  function handleDrop(e: React.DragEvent, stageId: string) {
-    e.preventDefault();
-    const appId = e.dataTransfer.getData('appId');
-    if (appId) moveCard(appId, stageId);
-    setDragging(null);
-  }
+  const onCardChange = (updated: Application) => {
+    setGroups((g) => {
+      const next: GroupedApplications = emptyGroups();
+      // Re-bucket every application; if `updated` exists, replace it; if it
+      // moved stages, swap into the right column.
+      for (const stage of APPLICATION_STAGES) {
+        next[stage] = g[stage]
+          .filter((a) => a.id !== updated.id);
+      }
+      next[updated.stage] = [updated, ...next[updated.stage]];
+      return next;
+    });
+    drawer.open(updated); // keep drawer in sync with optimistic update
+  };
+
+  const onCardDeleted = (id: string) => {
+    setGroups((g) => {
+      const next: GroupedApplications = emptyGroups();
+      for (const stage of APPLICATION_STAGES) {
+        next[stage] = g[stage].filter((a) => a.id !== id);
+      }
+      return next;
+    });
+  };
 
   return (
     <>
-      {/* Header */}
       <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
           <h1 className="page-title">Applications</h1>
           <p className="page-subtitle">
-            {loading ? 'Loading…' : `${total} application${total === 1 ? '' : 's'} tracked · drag cards to update stage`}
+            {loading ? 'Loading…' : `${total} application${total === 1 ? '' : 's'} in your pipeline`}
           </p>
         </div>
-        <button className="btn btn-ghost" onClick={load} style={{ fontSize: '13px' }}>
-          ↻ Refresh
-        </button>
       </div>
 
-      {error && (
-        <div className="card" style={{ marginBottom: '14px', padding: '10px 14px', borderColor: 'rgba(239,68,68,0.3)' }}>
-          <span style={{ color: '#f87171', fontSize: '13px' }}>⚠ {error}</span>
+      {error && <div className="auth-error" style={{ marginBottom: 12 }}>{error}</div>}
+
+      {!loading && total === 0 ? (
+        <div className="card">
+          <div className="empty-state">
+            <div className="empty-icon">📭</div>
+            <div className="empty-title">No applications yet</div>
+            <div className="empty-sub">
+              Apply to a job from the Jobs page to see it land here.
+            </div>
+            <a href="/jobs" className="btn btn-primary" style={{ marginTop: 12 }}>Browse jobs →</a>
+          </div>
         </div>
+      ) : (
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(6, minmax(220px, 1fr))',
+              gap: 12,
+              overflowX: 'auto',
+              paddingBottom: 16,
+            }}
+          >
+            {STAGES.map((s) => (
+              <Column
+                key={s.id}
+                stage={s}
+                items={groups[s.id]}
+                onCardClick={(a) => drawer.open(a)}
+              />
+            ))}
+          </div>
+        </DndContext>
       )}
 
-      {/* Stats bar */}
-      {!loading && total > 0 && (
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          {STAGES.map((s) => {
-            const count = groups[s.id]?.length ?? 0;
-            if (count === 0) return null;
-            return (
-              <div key={s.id} style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '4px 10px',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--surface-5)',
-                borderRadius: '8px',
-                fontSize: '12px', color: 'var(--text-secondary)',
-              }}>
-                <span style={{ color: s.color }}>{s.icon}</span>
-                <span style={{ fontWeight: 600 }}>{count}</span>
-                <span style={{ color: 'var(--text-muted)' }}>{s.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Kanban board */}
-      <div style={{
-        display: 'flex', gap: '12px',
-        overflowX: 'auto', paddingBottom: '20px',
-        minHeight: '420px',
-      }}>
-        {STAGES.map((stage) => {
-          const cards = groups[stage.id] ?? [];
-          return (
-            <KanbanColumn
-              key={stage.id}
-              stage={stage}
-              cards={cards}
-              loading={loading}
-              dragging={dragging}
-              onSelect={setSelected}
-              onDragStart={handleDragStart}
-              onDrop={handleDrop}
-              onDragEnd={() => setDragging(null)}
-            />
-          );
-        })}
-      </div>
-
-      {/* Detail drawer */}
-      {selected && (
-        <AppDetailModal
-          app={selected}
-          onClose={() => setSelected(null)}
-          onStageChange={async (s) => { await moveCard(selected.id, s); setSelected(null); }}
-          onSaveNotes={async (notes) => {
-            await fetch(`http://localhost:3001/api/applications/${selected.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ notes }),
-            });
-            setSelected({ ...selected, notes });
-          }}
+      {drawer.drawer((app) => (
+        <ApplicationDrawer
+          app={app}
+          onChange={onCardChange}
+          onClose={drawer.close}
+          onDeleted={onCardDeleted}
         />
-      )}
+      ))}
     </>
   );
 }
 
-// ── Kanban column ──────────────────────────────────────────────────────────
-function KanbanColumn({
-  stage, cards, loading, dragging,
-  onSelect, onDragStart, onDrop, onDragEnd,
+// ---------------------------------------------------------------------------
+// Column — droppable region wrapping a SortableContext
+// ---------------------------------------------------------------------------
+function Column({
+  stage, items, onCardClick,
 }: {
-  stage: typeof STAGES[0];
-  cards: Application[];
-  loading: boolean;
-  dragging: string | null;
-  onSelect: (a: Application) => void;
-  onDragStart: (e: React.DragEvent, id: string) => void;
-  onDrop: (e: React.DragEvent, stageId: string) => void;
-  onDragEnd: () => void;
+  stage: { id: ApplicationStage; label: string; color: string; icon: string };
+  items: Application[];
+  onCardClick: (a: Application) => void;
 }) {
-  const [over, setOver] = useState(false);
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
   return (
-    <div
-      style={{
-        minWidth: '230px', width: '230px',
-        background: over ? `${stage.color}08` : 'var(--surface-2)',
-        borderRadius: '12px',
-        border: `1px solid ${over ? stage.color + '40' : 'var(--surface-5)'}`,
-        display: 'flex', flexDirection: 'column',
-        transition: 'all 0.15s',
-      }}
-      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => { onDrop(e, stage.id); setOver(false); }}
-    >
-      {/* Column header */}
-      <div style={{
-        padding: '12px 14px',
-        borderBottom: '1px solid var(--surface-5)',
-        display: 'flex', alignItems: 'center', gap: '8px',
-      }}>
-        <div style={{
-          width: '8px', height: '8px', borderRadius: '50%',
-          background: stage.color, flexShrink: 0,
-          boxShadow: `0 0 6px ${stage.color}80`,
-        }} />
-        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>
-          {stage.label}
+    <div ref={setNodeRef} className={`kanban-col ${isOver ? 'over' : ''}`}>
+      <div className="kanban-col-head">
+        <span className="kanban-col-dot" style={{ background: stage.color }} />
+        <span className="kanban-col-name">
+          {stage.icon} {stage.label}
         </span>
-        <span style={{
-          fontSize: '11px', fontWeight: 600,
-          color: cards.length > 0 ? stage.color : 'var(--text-muted)',
-          background: cards.length > 0 ? `${stage.color}18` : 'var(--surface-4)',
-          padding: '1px 7px', borderRadius: '99px',
-          minWidth: '20px', textAlign: 'center',
-        }}>
-          {loading ? '…' : cards.length}
-        </span>
+        <span className="kanban-col-count">{items.length}</span>
       </div>
-
-      {/* Cards */}
-      <div style={{ flex: 1, padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {loading && (
-          <div style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
-            Loading…
-          </div>
-        )}
-        {!loading && cards.length === 0 && (
+      <SortableContext items={items.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+        {items.length === 0 && (
           <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '11px', color: 'var(--text-muted)',
-            padding: '24px 0', textAlign: 'center',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            textAlign: 'center',
+            padding: '24px 8px',
+            fontStyle: 'italic',
           }}>
-            Drop cards here
+            Drop here
           </div>
         )}
-        {cards.map((app) => (
-          <AppCard
-            key={app.id}
-            app={app}
-            stageColor={stage.color}
-            isDragging={dragging === app.id}
-            onClick={() => onSelect(app)}
-            onDragStart={(e) => onDragStart(e, app.id)}
-            onDragEnd={onDragEnd}
-          />
+        {items.map((a) => (
+          <ApplicationCard key={a.id} app={a} onClick={onCardClick} />
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Application card ───────────────────────────────────────────────────────
-function AppCard({ app, stageColor, isDragging, onClick, onDragStart, onDragEnd }: {
-  app: Application;
-  stageColor: string;
-  isDragging: boolean;
-  onClick: () => void;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragEnd: () => void;
-}) {
-  const daysAgo = Math.floor((Date.now() - new Date(app.submittedAt).getTime()) / 86_400_000);
-
-  return (
-    <div
-      draggable
-      onClick={onClick}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      style={{
-        padding: '10px 12px',
-        background: isDragging ? 'var(--surface-4)' : 'var(--surface-3)',
-        border: `1px solid ${isDragging ? stageColor + '60' : 'var(--surface-5)'}`,
-        borderRadius: '9px',
-        cursor: 'grab',
-        transition: 'all 0.12s',
-        opacity: isDragging ? 0.5 : 1,
-        userSelect: 'none',
-      }}
-    >
-      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '3px', lineHeight: 1.3 }}>
-        {app.job.title}
-      </div>
-      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-        {app.job.company}
-        {app.job.ycBatch && (
-          <span style={{ fontSize: '9px', background: 'rgba(251,191,36,0.15)', color: '#fbbf24', padding: '1px 4px', borderRadius: '4px', fontWeight: 600 }}>
-            YC {app.job.ycBatch}
-          </span>
-        )}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
-        <span>{daysAgo === 0 ? 'Today' : `${daysAgo}d ago`}</span>
-        {app.resume && <span style={{ color: 'var(--brand-400)' }}>📄 {app.resume.name}</span>}
-      </div>
-      {app.notes && (
-        <div style={{
-          marginTop: '6px', fontSize: '10px', color: 'var(--text-muted)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          paddingTop: '6px', borderTop: '1px solid var(--surface-5)',
-        }}>
-          📝 {app.notes}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Detail modal ───────────────────────────────────────────────────────────
-function AppDetailModal({ app, onClose, onStageChange, onSaveNotes }: {
-  app: Application;
-  onClose: () => void;
-  onStageChange: (stage: string) => Promise<void>;
-  onSaveNotes: (notes: string) => Promise<void>;
-}) {
-  const [notes, setNotes] = useState(app.notes ?? '');
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [movingTo, setMovingTo] = useState<string | null>(null);
-
-  async function handleStageChange(s: string) {
-    setMovingTo(s);
-    await onStageChange(s);
-    setMovingTo(null);
-  }
-
-  async function handleSaveNotes() {
-    setSavingNotes(true);
-    await onSaveNotes(notes);
-    setSavingNotes(false);
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-panel" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <div>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {app.job.title}
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', gap: '8px' }}>
-              <span>{app.job.company}</span>
-              {app.job.ycBatch && <span style={{ color: '#fbbf24' }}>YC {app.job.ycBatch}</span>}
-              <span>· Applied {new Date(app.submittedAt).toLocaleDateString()}</span>
-            </div>
-          </div>
-          <button className="btn btn-ghost" onClick={onClose} style={{ padding: '4px 10px', fontSize: '16px' }}>✕</button>
-        </div>
-
-        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Stage picker */}
-          <div>
-            <label className="field-label">Move to stage</label>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-              {STAGES.map((s) => (
-                <button
-                  key={s.id}
-                  disabled={movingTo !== null || app.stage === s.id}
-                  onClick={() => handleStageChange(s.id)}
-                  style={{
-                    padding: '5px 12px', fontSize: '11px', fontWeight: 600,
-                    borderRadius: '7px', border: `1px solid ${app.stage === s.id ? s.color : 'var(--surface-5)'}`,
-                    background: app.stage === s.id ? `${s.color}18` : 'var(--surface-3)',
-                    color: app.stage === s.id ? s.color : 'var(--text-muted)',
-                    cursor: app.stage === s.id ? 'default' : 'pointer',
-                    transition: 'all 0.12s',
-                    opacity: movingTo && movingTo !== s.id ? 0.5 : 1,
-                  }}
-                >
-                  {s.icon} {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Resume */}
-          {app.resume && (
-            <div style={{
-              padding: '10px 14px',
-              background: 'var(--surface-2)', border: '1px solid var(--surface-5)', borderRadius: '8px',
-              fontSize: '12px', color: 'var(--text-secondary)',
-              display: 'flex', alignItems: 'center', gap: '8px',
-            }}>
-              <span style={{ fontSize: '16px' }}>📄</span>
-              <div>
-                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Resume used</div>
-                <div style={{ color: 'var(--text-muted)' }}>{app.resume.name}</div>
-              </div>
-            </div>
-          )}
-
-          {/* Cover letter preview */}
-          {app.coverLetter && (
-            <div>
-              <label className="field-label">Cover letter</label>
-              <div style={{
-                padding: '12px 14px', marginTop: '6px',
-                background: 'var(--surface-2)', border: '1px solid var(--surface-5)', borderRadius: '8px',
-                fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.7,
-                maxHeight: '160px', overflowY: 'auto',
-                whiteSpace: 'pre-wrap',
-              }}>
-                {app.coverLetter}
-              </div>
-            </div>
-          )}
-
-          {/* Notes */}
-          <div>
-            <label className="field-label">Notes</label>
-            <textarea
-              className="textarea-base"
-              rows={4}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add notes about this application, interview feedback, etc."
-              style={{ marginTop: '6px' }}
-            />
-          </div>
-
-          {/* Apply URL */}
-          <a
-            href={app.job.applyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontSize: '12px', color: 'var(--brand-400)', textDecoration: 'none' }}
-          >
-            ↗ View original job posting
-          </a>
-        </div>
-
-        <div className="modal-foot">
-          <button className="btn btn-ghost" onClick={onClose}>Close</button>
-          <button
-            className="btn btn-primary"
-            disabled={savingNotes}
-            onClick={handleSaveNotes}
-            style={{ minWidth: '110px' }}
-          >
-            {savingNotes ? 'Saving…' : '✓ Save Notes'}
-          </button>
-        </div>
-      </div>
+      </SortableContext>
     </div>
   );
 }

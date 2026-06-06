@@ -8,13 +8,20 @@ import { applyRoutes } from './routes/apply';
 import { trackerRoutes } from './routes/tracker';
 import { resumeRoutes } from './routes/resumes';
 import { profileRoutes } from './routes/profile';
+import { settingsRoutes } from './routes/settings';
 import { authRoutes } from './routes/auth';
 import { jwtPlugin, requireAuth } from './lib/auth';
 import { startCronJobs } from './services/cron';
 
 const app = new Elysia()
   .use(cors({
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+    origin: (request) => {
+      const origin = request.headers.get('origin') ?? '';
+      // Allow the website + any chrome extension page (side panel / SW).
+      if (origin === (process.env.FRONTEND_URL ?? 'http://localhost:3000')) return true;
+      if (origin.startsWith('chrome-extension://')) return true;
+      return false;
+    },
     credentials: true,
   }))
   .use(swagger({
@@ -45,6 +52,7 @@ const app = new Elysia()
       .use(trackerRoutes)
       .use(resumeRoutes)
       .use(profileRoutes)
+      .use(settingsRoutes)
   )
   .listen(process.env.PORT ?? 3001);
 

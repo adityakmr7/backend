@@ -1,27 +1,20 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading, hasUsers, login } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // First run: no users exist → redirect to signup.
-  useEffect(() => {
-    if (hasUsers === false) router.replace('/signup');
-  }, [hasUsers, router]);
-
-  // Already signed in.
-  useEffect(() => {
-    if (!loading && user) router.replace('/dashboard');
-  }, [user, loading, router]);
+  // Note: AuthGate handles first-run redirect (/login → /signup when no users)
+  // and the signed-in → /dashboard bounce. No per-page useEffect needed.
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

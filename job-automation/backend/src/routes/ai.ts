@@ -2,11 +2,21 @@
 import { Elysia } from 'elysia';
 import type { Resume } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { generateCoverLetter, scoreResumeForJob } from '../services/ai';
+import {
+  generateCoverLetter,
+  scoreResumeForJob,
+  candidateBackground,
+} from '../services/ai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const _genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const _flash  = _genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+// Lazy Flash client for the local company-summary prompt. Same DB-first /
+// env-fallback rules as services/ai.ts.
+async function flashModel() {
+  const row = await prisma.settings.findFirst().catch(() => null);
+  const key = (row?.geminiApiKey || process.env.GEMINI_API_KEY || '').trim();
+  if (!key) throw new Error('AI_KEY_MISSING: configure a Gemini key in /settings');
+  return new GoogleGenerativeAI(key).getGenerativeModel({ model: 'gemini-1.5-flash' });
+}
 
 export const aiRoutes = new Elysia({ prefix: '/api/ai' })
 
@@ -18,11 +28,12 @@ export const aiRoutes = new Elysia({ prefix: '/api/ai' })
       tone?: string;
     };
 
-    const [job, resume] = await Promise.all([
+    const [job, resume, profile] = await Promise.all([
       prisma.job.findUniqueOrThrow({ where: { id: jobId } }),
       resumeId
         ? prisma.resume.findUniqueOrThrow({ where: { id: resumeId } })
         : prisma.resume.findFirst({ where: { isDefault: true } }),
+      prisma.profile.findFirst(),
     ]);
 
     if (!resume) throw new Error('No resume found. Upload a resume first.');
@@ -31,7 +42,8 @@ export const aiRoutes = new Elysia({ prefix: '/api/ai' })
       job.description,
       resume.textContent,
       `${job.company} (YC ${job.ycBatch ?? 'backed'})`,
-      tone
+      tone,
+      profile,
     );
 
     return {
@@ -46,16 +58,17 @@ export const aiRoutes = new Elysia({ prefix: '/api/ai' })
   .post('/score-resume', async ({ body }) => {
     const { jobId } = body as { jobId: string };
 
-    const [job, resumes] = await Promise.all([
+    const [job, resumes, profile] = await Promise.all([
       prisma.job.findUniqueOrThrow({ where: { id: jobId } }),
       prisma.resume.findMany(),
+      prisma.profile.findFirst(),
     ]);
 
     if (resumes.length === 0) throw new Error('No resumes found.');
 
     const scores = await Promise.all(
       resumes.map(async (resume: Resume) => {
-        const score = await scoreResumeForJob(resume.textContent, job.description);
+        const score = await scoreResumeForJob(resume.textContent, job.description, profile);
         return { resumeId: resume.id, resumeName: resume.name, ...score };
       })
     );
@@ -70,7 +83,10 @@ export const aiRoutes = new Elysia({ prefix: '/api/ai' })
   .post('/company-summary', async ({ body }) => {
     const { jobId } = body as { jobId: string };
 
-    const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId } });
+    const [job, profile] = await Promise.all([
+      prisma.job.findUniqueOrThrow({ where: { id: jobId } }),
+      prisma.profile.findFirst(),
+    ]);
 
     // Build context from scraped data + JD
     const meta = job.metadata as Record<string, unknown> | null;
@@ -89,7 +105,7 @@ export const aiRoutes = new Elysia({ prefix: '/api/ai' })
 
     const prompt = `
 You are a startup research analyst. Summarise this company for a job applicant in <5 seconds of reading.
-
+${candidateBackground(profile)}
 **COMPANY:** ${job.company} (YC ${job.ycBatch ?? 'backed'})
 **ROLE BEING HIRED:** ${job.title}
 
@@ -113,9 +129,11 @@ Return ONLY valid JSON with this exact shape (no fence, no commentary):
 }
 
 Be factual. Only include techStack items actually mentioned in the JD or metadata. If unsure, omit.
+If CANDIDATE BACKGROUND is present, slant whyInteresting toward what the candidate would care about (their target roles, stack overlap).
 `.trim();
 
-    const result = await _flash.generateContent(prompt);
+    const flash = await flashModel();
+    const result = await flash.generateContent(prompt);
     const text = result.response.text().trim()
       .replace(/^```(?:json)?\n?/, '')
       .replace(/\n?```$/, '');

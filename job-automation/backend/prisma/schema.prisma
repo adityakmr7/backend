@@ -51,8 +51,8 @@ model Job {
 
 model Application {
   id             String    @id @default(cuid())
-  job            Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  jobId          String
+  job            Job?      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId          String?
   resume         Resume?   @relation(fields: [resumeId], references: [id])
   resumeId       String?
   coverLetter    String?
@@ -64,8 +64,15 @@ model Application {
   notes          String?
   updatedAt      DateTime  @updatedAt
 
+  // External applications (reported by the browser extension, no scraped Job)
+  source          String  @default("internal") // 'internal' | 'extension'
+  externalUrl     String?
+  externalCompany String?
+  externalTitle   String?
+
   @@index([stage])
   @@index([jobId])
+  @@index([externalUrl])
   @@map("applications")
 }
 
@@ -95,6 +102,18 @@ model Profile {
   targetLocations   String[]
   preferredSalaryMin Int?
   salaryCurrency    String   @default("USD")
+
+  // Structured autofill fields (used by the browser extension)
+  firstName         String?
+  lastName          String?
+  phone             String?
+  city              String?
+  state             String?
+  country           String?
+  zip               String?
+  experience        Json?    // [{ title, company, startDate, endDate, current, description, location }]
+  education         Json?    // [{ degree, field, institution, graduationYear, gpa }]
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -120,4 +139,14 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+// Singleton row of user-managed service credentials.
+// Today: gemini key. Could later hold gmail app password, etc.
+model Settings {
+  id           String   @id @default(cuid())
+  geminiApiKey String?
+  updatedAt    DateTime @updatedAt
+
+  @@map("settings")
 }

@@ -14,7 +14,7 @@ export const applyRoutes = new Elysia({ prefix: '/api/apply' })
   // mode = 'email'     → saves to DB AND sends email via Gmail SMTP
   // mode = 'full-auto' → placeholder for Playwright queue (Phase 2)
   // ──────────────────────────────────────────────────────────────────────────
-  .post('/:jobId', async ({ params, body }) => {
+  .post('/:jobId', async ({ params, body, set }) => {
     const {
       resumeId,
       coverLetter,
@@ -23,18 +23,25 @@ export const applyRoutes = new Elysia({ prefix: '/api/apply' })
     } = body as {
       resumeId?:    string;
       coverLetter?: string;
-      mode?:        'record' | 'email' | 'full-auto';
+      mode?:        'record' | 'email' | 'full-auto' | 'external';
       applyEmail?:  string;
     };
 
     const job = await prisma.job.findUniqueOrThrow({ where: { id: params.jobId } });
 
-    // Idempotency — block duplicate applications
+    // Idempotency — block duplicate applications with a structured 409
     const existing = await prisma.application.findFirst({
       where: { jobId: params.jobId },
     });
     if (existing) {
-      throw new Error(`Already applied to ${job.company} — ${job.title}`);
+      set.status = 409;
+      return {
+        error: {
+          code:    'ALREADY_APPLIED',
+          message: `Already applied to ${job.company} — ${job.title}`,
+          applicationId: existing.id,
+        },
+      };
     }
 
     // Resolve resume (for email attachment path)
@@ -139,15 +146,15 @@ export const applyRoutes = new Elysia({ prefix: '/api/apply' })
       include: { job: true },
     });
 
-    const recipient = applyEmail ?? application.job.applyEmail;
+    const recipient = applyEmail ?? application.job?.applyEmail;
     if (!recipient) throw new Error('No recipient email for follow-up.');
 
     const profile = await prisma.profile.findFirst();
 
     const result = await sendFollowUpEmail({
       to:       recipient,
-      jobTitle: application.job.title,
-      company:  application.job.company,
+      jobTitle: application.job?.title ?? application.externalTitle ?? 'Unknown Role',
+      company:  application.job?.company ?? application.externalCompany ?? 'Unknown Company',
       fromName: profile?.name,
     });
 

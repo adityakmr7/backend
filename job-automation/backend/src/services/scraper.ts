@@ -10,6 +10,7 @@
 //   4. Paginate via ?page=N until we hit maxJobs or run out of pages.
 
 import { Prisma } from '@prisma/client';
+import type { Profile } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { scoreJobRelevance } from './ai';
 import { randomInt } from 'node:crypto';
@@ -338,7 +339,7 @@ export async function scrapeWAASJobs(
 // ---------------------------------------------------------------------------
 // Save scraped jobs to DB (with deduplication + AI scoring)
 // ---------------------------------------------------------------------------
-export async function saveJobs(jobs: ScrapedJob[], resumeText?: string) {
+export async function saveJobs(jobs: ScrapedJob[], resumeText?: string, profile?: Profile | null) {
   let saved = 0;
   let skipped = 0;
 
@@ -352,7 +353,7 @@ export async function saveJobs(jobs: ScrapedJob[], resumeText?: string) {
     let relevanceScore: number | undefined;
     if (resumeText && job.description) {
       try {
-        relevanceScore = await scoreJobRelevance(job.title, job.description, resumeText);
+        relevanceScore = await scoreJobRelevance(job.title, job.description, resumeText, profile);
         await delay(400, 900);
       } catch { /* skip scoring on error */ }
     }

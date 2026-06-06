@@ -1,20 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { API_BASE } from '@/lib/api';
+import { api, type Profile as ApiProfile, type SettingsInfo } from '@/lib/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface Profile {
-  id?: string;
-  name: string;
-  email: string;
-  linkedinUrl?: string;
-  githubUrl?: string;
-  portfolioUrl?: string;
-  targetRoles?: string[];
-  targetLocations?: string[];
-  preferredSalaryMin?: number;
-}
+type Profile = ApiProfile;
 
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
@@ -32,16 +22,24 @@ export default function SettingsPage() {
   const [rolesStr, setRolesStr] = useState('');
   const [locStr, setLocStr] = useState('');
 
+  // Gemini key (DB-stored) state
+  const [keyInfo, setKeyInfo] = useState<SettingsInfo | null>(null);
+  const [keyInput, setKeyInput] = useState('');
+  const [savingKey, setSavingKey] = useState(false);
+
   useEffect(() => {
-    fetch(`${API_BASE}/api/profile`)
-      .then((r) => r.json())
-      .then((data: Profile) => {
-        if (!data.id) return; // no profile yet
-        setProfile(data);
-        setRolesStr((data.targetRoles ?? []).join(', '));
-        setLocStr((data.targetLocations ?? []).join(', '));
+    Promise.all([
+      api.profile.get().catch(() => null),
+      api.settings.get().catch(() => null),
+    ])
+      .then(([data, settings]) => {
+        if (data?.id) {
+          setProfile(data);
+          setRolesStr((data.targetRoles ?? []).join(', '));
+          setLocStr((data.targetLocations ?? []).join(', '));
+        }
+        if (settings) setKeyInfo(settings);
       })
-      .catch(() => {/* no profile yet */ })
       .finally(() => setLoading(false));
   }, []);
 
@@ -58,12 +56,7 @@ export default function SettingsPage() {
         targetRoles:     rolesStr.split(',').map((s) => s.trim()).filter(Boolean),
         targetLocations: locStr.split(',').map((s) => s.trim()).filter(Boolean),
       };
-      const res = await fetch(`${API_BASE}/api/profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await api.profile.save(payload);
       showToast('Settings saved successfully!');
     } catch (e) {
       showToast((e as Error).message, false);
@@ -72,9 +65,78 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveKey() {
+    setSavingKey(true);
+    try {
+      const info = await api.settings.save(keyInput.trim() || null);
+      setKeyInfo(info);
+      setKeyInput('');
+      showToast(info.hasGeminiKey ? 'Gemini key saved!' : 'Gemini key cleared.');
+    } catch (e) {
+      showToast((e as Error).message, false);
+    } finally {
+      setSavingKey(false);
+    }
+  }
+
   function set(field: keyof Profile, value: string | number | undefined) {
     setProfile((p) => ({ ...p, [field]: value }));
   }
+
+  // ── Experience helpers ────────────────────────────────────────────────────
+  function addExp() {
+    setProfile((p) => ({
+      ...p,
+      experience: [
+        ...(p.experience ?? []),
+        { title: '', company: '', startDate: '', endDate: '', current: false, description: '' },
+      ],
+    }));
+  }
+
+  function removeExp(index: number) {
+    setProfile((p) => ({
+      ...p,
+      experience: (p.experience ?? []).filter((_, i) => i !== index),
+    }));
+  }
+
+  function updateExp(index: number, patch: Partial<NonNullable<Profile['experience']>[number]>) {
+    setProfile((p) => ({
+      ...p,
+      experience: (p.experience ?? []).map((exp, i) =>
+        i === index ? { ...exp, ...patch } : exp
+      ),
+    }));
+  }
+
+  // ── Education helpers ─────────────────────────────────────────────────────
+  function addEdu() {
+    setProfile((p) => ({
+      ...p,
+      education: [
+        ...(p.education ?? []),
+        { degree: '', field: '', institution: '', graduationYear: '', gpa: '' },
+      ],
+    }));
+  }
+
+  function removeEdu(index: number) {
+    setProfile((p) => ({
+      ...p,
+      education: (p.education ?? []).filter((_, i) => i !== index),
+    }));
+  }
+
+  function updateEdu(index: number, patch: Partial<NonNullable<Profile['education']>[number]>) {
+    setProfile((p) => ({
+      ...p,
+      education: (p.education ?? []).map((edu, i) =>
+        i === index ? { ...edu, ...patch } : edu
+      ),
+    }));
+  }
+
 
   if (loading) {
     return (
@@ -179,6 +241,106 @@ export default function SettingsPage() {
           </Field>
         </Section>
 
+        {/* ── Autofill Details (used by the browser extension) ── */}
+        <Section title="🧩 Autofill Details" subtitle="Used by the JobPilot browser extension to fill applications on any portal">
+          <FormRow>
+            <Field label="First Name">
+              <input className="input-base" type="text" value={profile.firstName ?? ''}
+                onChange={(e) => set('firstName', e.target.value)} placeholder="Aditya" />
+            </Field>
+            <Field label="Last Name">
+              <input className="input-base" type="text" value={profile.lastName ?? ''}
+                onChange={(e) => set('lastName', e.target.value)} placeholder="Kumar" />
+            </Field>
+          </FormRow>
+          <Field label="Phone">
+            <input className="input-base" type="tel" value={profile.phone ?? ''}
+              onChange={(e) => set('phone', e.target.value)} placeholder="+91 99999 88888" />
+          </Field>
+          <FormRow>
+            <Field label="City">
+              <input className="input-base" type="text" value={profile.city ?? ''}
+                onChange={(e) => set('city', e.target.value)} placeholder="Bangalore" />
+            </Field>
+            <Field label="State">
+              <input className="input-base" type="text" value={profile.state ?? ''}
+                onChange={(e) => set('state', e.target.value)} placeholder="Karnataka" />
+            </Field>
+          </FormRow>
+          <FormRow>
+            <Field label="Country">
+              <input className="input-base" type="text" value={profile.country ?? ''}
+                onChange={(e) => set('country', e.target.value)} placeholder="India" />
+            </Field>
+            <Field label="ZIP / Postal Code">
+              <input className="input-base" type="text" value={profile.zip ?? ''}
+                onChange={(e) => set('zip', e.target.value)} placeholder="560001" />
+            </Field>
+          </FormRow>
+        </Section>
+
+        {/* ── Work Experience ── */}
+        <Section title="💼 Work Experience" subtitle="Most recent first — the top entry fills 'current title/company' fields">
+          {(profile.experience ?? []).map((exp, i) => (
+            <div key={i} style={{ padding: '12px', border: '1px solid var(--divider)', borderRadius: '10px', marginBottom: '10px', position: 'relative' }}>
+              <FormRow>
+                <Field label="Title">
+                  <input className="input-base" type="text" value={exp.title ?? ''}
+                    onChange={(e) => updateExp(i, { title: e.target.value })} placeholder="Senior Backend Engineer" />
+                </Field>
+                <Field label="Company">
+                  <input className="input-base" type="text" value={exp.company ?? ''}
+                    onChange={(e) => updateExp(i, { company: e.target.value })} placeholder="Groww" />
+                </Field>
+              </FormRow>
+              <FormRow>
+                <Field label="Start (YYYY-MM)">
+                  <input className="input-base" type="text" value={exp.startDate ?? ''}
+                    onChange={(e) => updateExp(i, { startDate: e.target.value })} placeholder="2024-01" />
+                </Field>
+                <Field label="End (YYYY-MM or blank)">
+                  <input className="input-base" type="text" value={exp.endDate ?? ''}
+                    onChange={(e) => updateExp(i, { endDate: e.target.value })} placeholder="Present" />
+                </Field>
+              </FormRow>
+              <button className="btn btn-ghost" style={{ fontSize: '11px', color: '#b91c1c', marginTop: '4px' }}
+                onClick={() => removeExp(i)}>Remove</button>
+            </div>
+          ))}
+          <button className="btn btn-ghost" style={{ fontSize: '12px' }} onClick={addExp}>+ Add experience</button>
+        </Section>
+
+        {/* ── Education ── */}
+        <Section title="🎓 Education" subtitle="Used to fill education sections on application forms">
+          {(profile.education ?? []).map((ed, i) => (
+            <div key={i} style={{ padding: '12px', border: '1px solid var(--divider)', borderRadius: '10px', marginBottom: '10px' }}>
+              <FormRow>
+                <Field label="Degree">
+                  <input className="input-base" type="text" value={ed.degree ?? ''}
+                    onChange={(e) => updateEdu(i, { degree: e.target.value })} placeholder="B.Tech" />
+                </Field>
+                <Field label="Field">
+                  <input className="input-base" type="text" value={ed.field ?? ''}
+                    onChange={(e) => updateEdu(i, { field: e.target.value })} placeholder="Computer Science" />
+                </Field>
+              </FormRow>
+              <FormRow>
+                <Field label="Institution">
+                  <input className="input-base" type="text" value={ed.institution ?? ''}
+                    onChange={(e) => updateEdu(i, { institution: e.target.value })} placeholder="IIT Delhi" />
+                </Field>
+                <Field label="Grad Year">
+                  <input className="input-base" type="text" value={ed.graduationYear ?? ''}
+                    onChange={(e) => updateEdu(i, { graduationYear: e.target.value })} placeholder="2020" />
+                </Field>
+              </FormRow>
+              <button className="btn btn-ghost" style={{ fontSize: '11px', color: '#b91c1c', marginTop: '4px' }}
+                onClick={() => removeEdu(i)}>Remove</button>
+            </div>
+          ))}
+          <button className="btn btn-ghost" style={{ fontSize: '12px' }} onClick={addEdu}>+ Add education</button>
+        </Section>
+
         {/* ── Job Preferences ── */}
         <Section title="🎯 Job Preferences" subtitle="Used by AI to score relevance and filter jobs">
           <Field label="Target Roles" hint="Comma-separated">
@@ -218,29 +380,46 @@ export default function SettingsPage() {
         {/* ── AI Config ── */}
         <Section
           title="🤖 AI Config"
-          subtitle="Gemini API key — stored only in your .env, never sent to any third-party"
+          subtitle="Gemini API key — stored in your database, used for cover letters, scoring & tailoring"
         >
-          <div style={{
-            padding: '12px 14px',
-            background: 'rgba(251,191,36,0.06)',
-            border: '1px solid rgba(251,191,36,0.2)',
-            borderRadius: '8px',
-            fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.6,
-            marginBottom: '12px',
-          }}>
-            💡 Set <code style={{ color: 'var(--brand-300)' }}>GEMINI_API_KEY</code> in{' '}
-            <code style={{ color: 'var(--brand-300)' }}>backend/.env</code> and restart the server.
-            Updating it here only shows you the current value — it cannot be changed from the UI for security.
-          </div>
-          <Field label="Gemini API Key">
-            <input
-              id="settings-gemini-key"
-              className="input-base"
-              type="password"
-              placeholder="Set via GEMINI_API_KEY in backend/.env"
-              disabled
-              style={{ opacity: 0.5 }}
-            />
+          {keyInfo?.hasGeminiKey && (
+            <div style={{
+              padding: '10px 14px',
+              background: 'rgba(34,197,94,0.08)',
+              border: '1px solid rgba(34,197,94,0.25)',
+              borderRadius: '8px',
+              fontSize: '12px', color: 'var(--text-secondary)',
+              marginBottom: '12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            }}>
+              <span>✓ Key saved (ends in <code style={{ color: 'var(--brand-700)' }}>{keyInfo.geminiKeyHint}</code>)</span>
+              <button
+                className="btn btn-ghost"
+                style={{ fontSize: 11, padding: '4px 10px' }}
+                disabled={savingKey}
+                onClick={() => { setKeyInput(''); setKeyInfo(null); api.settings.save(null).then(setKeyInfo).catch(() => {}); }}
+              >Clear</button>
+            </div>
+          )}
+          <Field label={keyInfo?.hasGeminiKey ? 'Replace Gemini API Key' : 'Gemini API Key'} hint="Get one free at aistudio.google.com/app/apikey">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                id="settings-gemini-key"
+                className="input-base"
+                type="password"
+                placeholder="AIza…"
+                value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={saveKey}
+                disabled={savingKey || !keyInput.trim()}
+              >
+                {savingKey ? 'Saving…' : 'Save key'}
+              </button>
+            </div>
           </Field>
         </Section>
 
@@ -295,8 +474,7 @@ export default function SettingsPage() {
               style={{ fontSize: '12px' }}
               onClick={async () => {
                 try {
-                  const res = await fetch(`${API_BASE}/api/apply/mailer/verify`);
-                  const data = await res.json() as { ok: boolean; error?: string };
+                  const data = await api.apply.mailerVerify();
                   if (data.ok) {
                     showToast('✓ Gmail SMTP connection verified successfully!');
                   } else {
@@ -332,12 +510,7 @@ export default function SettingsPage() {
               style={{ fontSize: '12px' }}
               onClick={async () => {
                 try {
-                  const res = await fetch(`${API_BASE}/api/jobs/scrape`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sources: ['waas'], maxJobs: 50, fetchDetail: false }),
-                  });
-                  const data = await res.json() as { message?: string };
+                  const data = await api.jobs.scrape({ maxJobs: 50, fetchDetail: false });
                   showToast(data.message ?? 'Scrape triggered');
                 } catch (e) {
                   showToast((e as Error).message, false);

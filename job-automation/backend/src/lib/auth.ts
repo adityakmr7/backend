@@ -12,6 +12,7 @@ export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 export interface SessionPayload {
   userId: string;
   email: string;
+  [key: string]: any;
 }
 
 const SECRET = process.env.JWT_SECRET;
@@ -31,7 +32,25 @@ export const jwtPlugin = new Elysia({ name: 'jwt' }).use(
 );
 
 /**
- * Elysia beforeHandle that validates the session cookie and 401s on miss.
+ * Extract a JWT token from either:
+ *   1. Authorization: Bearer <token>  header  (Chrome extension uses this)
+ *   2. The jp_session cookie           (web app uses this)
+ *
+ * Returns the raw token string or null.
+ */
+export function extractToken(
+  headers: Record<string, string | undefined>,
+  cookie: any,
+): string | null {
+  const authHeader = headers['authorization'] ?? '';
+  if (authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7);
+  }
+  return cookie[SESSION_COOKIE]?.value ?? null;
+}
+
+/**
+ * Elysia beforeHandle that validates the session cookie OR Bearer token.
  * Use via:
  *
  *   .guard({ beforeHandle: requireAuth }, app => app.use(jobsRoutes)...)
@@ -43,12 +62,14 @@ export async function requireAuth({
   cookie,
   jwt,
   set,
+  headers,
 }: {
-  cookie: Record<string, { value?: string }>;
-  jwt: { verify: (token: string) => Promise<SessionPayload | false> };
-  set: { status?: number };
+  cookie: any;
+  jwt: any;
+  set: any;
+  headers: Record<string, string | undefined>;
 }) {
-  const token = cookie[SESSION_COOKIE]?.value;
+  const token = extractToken(headers, cookie);
   if (!token) {
     set.status = 401;
     return { error: { code: 'NO_SESSION', message: 'Authentication required' } };

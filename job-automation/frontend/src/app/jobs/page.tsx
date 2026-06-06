@@ -5,6 +5,7 @@ import { api, type JobListItem, type JobStats } from '@/lib/api';
 import TabBar, { type TabItem } from '@/components/TabBar';
 import PillFilter from '@/components/PillFilter';
 import JobCard from '@/components/JobCard';
+import { useApplyModal } from '@/components/ApplyModal';
 
 const TABS = [
   { id: 'recommended', label: 'Recommended', filter: { status: 'new' } },
@@ -34,6 +35,7 @@ export default function JobsPage() {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
   const [busy, setBusy]           = useState<string | null>(null); // per-job id
+  const apply = useApplyModal();
 
   const filters = useMemo(() => TABS.find((t) => t.id === activeTab)!.filter, [activeTab]);
 
@@ -76,6 +78,7 @@ export default function JobsPage() {
   }
 
   return (
+    <>
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 260px', gap: '24px' }}>
       {/* MAIN COLUMN */}
       <div style={{ minWidth: 0 }}>
@@ -138,7 +141,7 @@ export default function JobsPage() {
               job={job}
               onSave={(id) => setStatus(id, 'saved')}
               onHide={(id) => setStatus(id, 'rejected')}
-              onApply={(id) => setStatus(id, 'applied')}
+              onApply={(id) => apply.open(id, { onApplied: load })}
             />
           ))}
           {busy && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>updating…</div>}
@@ -203,5 +206,7 @@ export default function JobsPage() {
         </div>
       </aside>
     </div>
+    {apply.modal}
+    </>
   );
 }

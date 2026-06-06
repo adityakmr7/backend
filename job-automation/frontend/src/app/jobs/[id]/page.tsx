@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api, type JobDetail } from '@/lib/api';
 import { API_BASE } from '@/lib/api';
+import { useApplyModal } from '@/components/ApplyModal';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CoverLetterResult {
@@ -43,6 +44,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState<string | null>(null);
   const [tab, setTab]       = useState<Tab>('overview');
+  const apply = useApplyModal();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,14 +128,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         </div>
 
         <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-          <a
-            href={job.applyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
             className="btn btn-primary"
+            onClick={() => apply.open(job.id, { onApplied: load })}
           >
-            ↗ Apply
-          </a>
+            ✨ Apply
+          </button>
         </div>
       </div>
 
@@ -224,6 +224,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       {tab === 'score' && (
         <ScoreTab job={job} />
       )}
+      {apply.modal}
     </>
   );
 }

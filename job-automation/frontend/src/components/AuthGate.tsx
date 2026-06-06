@@ -28,6 +28,14 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [pathname, hasUsers, router]);
 
+  // Auth routes are for signed-out users only — bounce signed-in users home.
+  useEffect(() => {
+    if (loading) return;
+    if (user && isPublic(pathname)) {
+      router.replace('/dashboard');
+    }
+  }, [user, loading, pathname, router]);
+
   // Protected paths: bounce to /login when unauthenticated.
   useEffect(() => {
     if (loading) return;
@@ -53,8 +61,12 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
-  // Public routes render alone (no sidebar / topbar).
-  if (isPublic(pathname)) return <>{children}</>;
+  // Public routes — but if we already know the user is signed in, render
+  // nothing while the redirect above fires (avoids a flash of the login form).
+  if (isPublic(pathname)) {
+    if (user) return null;
+    return <>{children}</>;
+  }
 
   // Protected, signed-in.
   if (user) return <>{children}</>;

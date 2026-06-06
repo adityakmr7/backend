@@ -141,17 +141,22 @@ export const jobsRoutes = new Elysia({ prefix: '/api/jobs' })
       filters?: WAASFilters;
     };
 
-    // Load default resume for AI relevance scoring
+    // Load default resume + profile for AI relevance scoring
     let resumeText: string | undefined;
+    let profile = null;
     if (useResumeScoring) {
-      const defaultResume = await prisma.resume.findFirst({ where: { isDefault: true } });
+      const [defaultResume, p] = await Promise.all([
+        prisma.resume.findFirst({ where: { isDefault: true } }),
+        prisma.profile.findFirst(),
+      ]);
       resumeText = defaultResume?.textContent;
+      profile = p;
       if (resumeText) console.log('[Scraper] Resume loaded for relevance scoring');
     }
 
     console.log(`[Scraper] Fetching WAAS jobs (max: ${maxJobs})`);
     const jobs = await scrapeWAASJobs(maxJobs, filters, fetchDetail);
-    const { saved, skipped } = await saveJobs(jobs, resumeText);
+    const { saved, skipped } = await saveJobs(jobs, resumeText, profile);
 
     return {
       status: 'completed',

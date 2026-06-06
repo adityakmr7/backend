@@ -6,7 +6,10 @@ async function runFullScrape() {
   const start = Date.now();
   console.log(`[Cron] 🔍 Auto-scrape started at ${new Date().toISOString()}`);
 
-  const defaultResume = await prisma.resume.findFirst({ where: { isDefault: true } });
+  const [defaultResume, profile] = await Promise.all([
+    prisma.resume.findFirst({ where: { isDefault: true } }),
+    prisma.profile.findFirst(),
+  ]);
   const resumeText = defaultResume?.textContent;
 
   let saved = 0;
@@ -14,7 +17,7 @@ async function runFullScrape() {
 
   try {
     const jobs = await scrapeWAASJobs(100, {}, true);
-    const r = await saveJobs(jobs, resumeText);
+    const r = await saveJobs(jobs, resumeText, profile);
     saved = r.saved; skipped = r.skipped;
   } catch (e) {
     console.error('[Cron] WAAS scrape failed:', (e as Error).message);

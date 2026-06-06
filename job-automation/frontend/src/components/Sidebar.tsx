@@ -15,13 +15,13 @@ const PRIMARY: Item[] = [
   { href: '/resumes',      label: 'Resume',        icon: '📄' },
   { href: '/dashboard',    label: 'Profile',       icon: '👤' },
   { href: '/applications', label: 'Applications',  icon: '🎯' },
-  { href: '/settings',     label: 'Coaching',      icon: '🧭', badge: 'NEW' },
+  // { href: '/settings',     label: 'Coaching',      icon: '🧭', badge: 'NEW' },
 ];
 
 const SECONDARY: Item[] = [
-  { href: '/dashboard',  label: 'Gifts',    icon: '🎁' },
-  { href: '/dashboard',  label: 'Notifs',   icon: '🔔' },
-  { href: '/dashboard',  label: 'Help',     icon: '❓' },
+  // { href: '/dashboard',  label: 'Gifts',    icon: '🎁' },
+  // { href: '/dashboard',  label: 'Notifs',   icon: '🔔' },
+  // { href: '/dashboard',  label: 'Help',     icon: '❓' },
   { href: '/settings',   label: 'Settings', icon: '⚙' },
 ];
 

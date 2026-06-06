@@ -5,6 +5,7 @@ import {
   jwtPlugin,
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
+  extractToken,
   type SessionPayload,
 } from '../lib/auth';
 
@@ -12,8 +13,8 @@ const isProd = process.env.NODE_ENV === 'production';
 
 const cookieAttrs = {
   httpOnly: true,
-  sameSite: 'lax' as const,
-  secure: isProd,
+  sameSite: 'none' as const,  // Must be 'none' so chrome-extension:// origin can send it
+  secure: isProd,              // Required for SameSite=None in production (HTTPS)
   path: '/',
   maxAge: SESSION_MAX_AGE_SECONDS,
 };
@@ -42,8 +43,9 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   })
 
   // GET /api/auth/me — current user info; 401 if not signed in.
-  .get('/me', async ({ cookie, jwt, set }) => {
-    const token = cookie[SESSION_COOKIE]?.value;
+  .get('/me', async ({ cookie, jwt, set, headers }) => {
+    // Support both Bearer token (extension) and session cookie (web app)
+    const token = extractToken(headers as Record<string, string | undefined>, cookie);
     if (!token) {
       set.status = 401;
       return { user: null };
@@ -85,7 +87,9 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
     const token = await jwt.sign({ userId: user.id, email: user.email } as SessionPayload);
     cookie[SESSION_COOKIE].set({ value: token, ...cookieAttrs });
 
-    return { user };
+    // Also return the raw token so the Chrome extension can persist it
+    // in chrome.storage.local (cookies don't reliably work cross-origin from extensions)
+    return { user, token };
   }, {
     body: t.Object({
       email: t.String(),
@@ -114,7 +118,8 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
     const token = await jwt.sign({ userId: user.id, email: user.email } as SessionPayload);
     cookie[SESSION_COOKIE].set({ value: token, ...cookieAttrs });
 
-    return { user: { id: user.id, email: user.email, createdAt: user.createdAt } };
+    // Also return the raw token so the Chrome extension can persist it
+    return { user: { id: user.id, email: user.email, createdAt: user.createdAt }, token };
   }, {
     body: t.Object({
       email: t.String(),
